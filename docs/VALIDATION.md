@@ -38,8 +38,14 @@ The arm64 archive combines the official arm64 Node base with the same production
 app/dependencies and supplied arm64 native modules. Its actual arm64 Node runtime
 passes the full Compose ownership/proxy/bootstrap/session persistence smoke
 through a test-only QEMU wrapper; the emulator is excluded from the archive.
-Native arm64 release CI and anonymous registry pulls remain pending until GitHub
-can assign runners. See [the image archive guide](IMAGE_ARCHIVES.md).
+The final [0.3.0 release workflow](https://github.com/Elias02345/MineMate/actions/runs/37370473091)
+passes after retry: all checks, native amd64/arm64 builds, manifest publication,
+anonymous pull and public configuration-download verification. Version `0.3.0`
+and `latest` are public on GHCR. An independent anonymous cloud pull confirms
+both CPU architectures and the immutable tag's source revision; public Compose
+and environment downloads match the repository. The published amd64 image
+passes a fresh full production Compose/persistence smoke. See [the image archive
+guide](IMAGE_ARCHIVES.md) for the additional offline installation option.
 
 Independent public downloads of both image archives, Compose, the environment
 example, installation guide and checksums match the prepared files byte for byte.
