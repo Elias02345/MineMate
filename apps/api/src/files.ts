@@ -379,6 +379,7 @@ export class Files {
               "server.properties",
               "eula.txt",
               "custom-server.jar",
+              "server-installer.jar",
               ".minemate-content.json",
             ].includes(relative)
           )

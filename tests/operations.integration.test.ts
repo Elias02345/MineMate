@@ -591,6 +591,32 @@ describe("world operations with a controlled Docker fixture", () => {
       await readdir(instance.servers.paths.server(server.id, "uploads")),
     ).toEqual([]);
   });
+  it("protects the server installer from general file uploads without stopping Minecraft", async () => {
+    const installer =
+        instance.servers.paths.server(server.id) + "/server-installer.jar",
+      boundary = "minemate-protected-installer-boundary";
+    await writeFile(installer, "existing installer");
+    const response = await instance.app.inject({
+      method: "POST",
+      url: `/api/v1/servers/${server.id}/uploads?kind=file&confirm=true`,
+      headers: {
+        ...headers,
+        "content-type": `multipart/form-data; boundary=${boundary}`,
+      },
+      payload: Buffer.from(
+        `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="server-installer.jar"\r\nContent-Type: application/java-archive\r\n\r\nreplacement bytes\r\n--${boundary}--\r\n`,
+      ),
+    });
+    expect(response.statusCode).toBe(202);
+    const op = await finish(response.json().operation.id);
+    expect(op.status).toBe("FAILED");
+    expect(op.error).toContain("dedicated");
+    expect(await readFile(installer, "utf8")).toBe("existing installer");
+    expect(instance.servers.get(server.id).state).toBe("RUNNING");
+    expect(
+      await readdir(instance.servers.paths.server(server.id, "uploads")),
+    ).toEqual([]);
+  });
   it("completes a staged configuration upload and cleans its moved source", async () => {
     const boundary = "minemate-file-boundary",
       content = '{"setting":true}',

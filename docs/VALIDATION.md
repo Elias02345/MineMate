@@ -26,7 +26,7 @@ the UI upgrade does not require starting new Minecraft servers.
 ## Automated checks
 
 - Strict TypeScript, ESLint and production frontend/backend builds pass.
-- 62 unit and API integration checks pass, covering permissions, bootstrap races,
+- 63 unit and API integration checks pass, covering permissions, bootstrap races,
   session revocation, migrations, ZIP/path validation, dependencies, hashes,
   bounded download failures, closed sockets, stale edits, imported content and
   restoring world bytes, inventory, resources and the original LAN port.
