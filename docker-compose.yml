@@ -1,0 +1,108 @@
+name: minemate
+services:
+  prepare-data:
+    image: alpine:3.22.1
+    user: "0:0"
+    command: ["chown", "1000:1000", "/data"]
+    volumes:
+      - ${MINEMATE_DATA_PATH:-./data}:/data
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [CHOWN]
+    security_opt: [no-new-privileges:true]
+  minemate:
+    image: ${MINEMATE_IMAGE:-ghcr.io/elias02345/minemate:0.3.0}
+    init: true
+    restart: unless-stopped
+    environment:
+      MINEMATE_PORT: 8080
+      MINEMATE_DATA_PATH: /data
+      MINEMATE_HOST_DATA_PATH: ${MINEMATE_HOST_DATA_PATH:-auto}
+      MINEMATE_LAN_IP: ${MINEMATE_LAN_IP:?Set your Docker host LAN address in .env}
+      MINEMATE_DOCKER_ENDPOINT: http://socket-proxy:2375
+      MINEMATE_SERVER_NETWORK: ${MINEMATE_SERVER_NETWORK:-minemate-servers}
+      MINEMATE_RUNTIME_IMAGE: ${MINEMATE_IMAGE:-ghcr.io/elias02345/minemate:0.3.0}
+      MINEMATE_JAVA_PORT_START: ${MINEMATE_JAVA_PORT_START:-25565}
+      MINEMATE_JAVA_PORT_END: ${MINEMATE_JAVA_PORT_END:-65535}
+      MINEMATE_BEDROCK_PORT_START: ${MINEMATE_BEDROCK_PORT_START:-19132}
+      MINEMATE_BEDROCK_PORT_END: ${MINEMATE_BEDROCK_PORT_END:-65535}
+      MINEMATE_GAME_BIND_ADDRESS: ${MINEMATE_BIND_ADDRESS:-0.0.0.0}
+      MINEMATE_SECURE_COOKIES: ${MINEMATE_SECURE_COOKIES:-false}
+      MINEMATE_TRUST_PROXY: ${MINEMATE_TRUST_PROXY:-false}
+      TZ: ${TZ:-Europe/Berlin}
+    ports:
+      - ${MINEMATE_BIND_ADDRESS:-0.0.0.0}:${MINEMATE_PORT:-18080}:8080
+    volumes:
+      - ${MINEMATE_DATA_PATH:-./data}:/data
+    networks:
+      - control
+      - worlds
+    depends_on:
+      prepare-data:
+        condition: service_completed_successfully
+      socket-proxy:
+        condition: service_healthy
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=256m
+    stop_grace_period: 5m
+  socket-proxy:
+    image: tecnativa/docker-socket-proxy:v0.5.0
+    restart: unless-stopped
+    environment:
+      CONTAINERS: 1
+      IMAGES: 1
+      NETWORKS: 1
+      EXEC: 1
+      INFO: 1
+      VERSION: 1
+      PING: 1
+      POST: 1
+      AUTH: 0
+      BUILD: 0
+      COMMIT: 0
+      CONFIGS: 0
+      DISTRIBUTION: 0
+      EVENTS: 0
+      NODES: 0
+      PLUGINS: 0
+      SECRETS: 0
+      SERVICES: 0
+      SESSION: 0
+      SWARM: 0
+      SYSTEM: 0
+      TASKS: 0
+      VOLUMES: 0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - control
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "-Y",
+          "off",
+          "-q",
+          "-O",
+          "/dev/null",
+          "http://127.0.0.1:2375/_ping",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+networks:
+  control:
+    internal: true
+  worlds:
+    name: ${MINEMATE_SERVER_NETWORK:-minemate-servers}
+    driver: bridge
