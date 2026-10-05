@@ -1,17 +1,28 @@
 name: minemate
 services:
+  prepare-data:
+    image: alpine:3.22.1
+    user: "0:0"
+    command: ["chown", "1000:1000", "/data"]
+    volumes:
+      - ${MINEMATE_DATA_PATH:-./data}:/data
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [CHOWN]
+    security_opt: [no-new-privileges:true]
   minemate:
-    image: ${MINEMATE_IMAGE:-minemate:0.1.0}
-    build: .
+    image: ${MINEMATE_IMAGE:-ghcr.io/elias02345/minemate:0.1.0}
     init: true
     restart: unless-stopped
     environment:
       MINEMATE_PORT: 8080
       MINEMATE_DATA_PATH: /data
-      MINEMATE_HOST_DATA_PATH: ${MINEMATE_HOST_DATA_PATH:?Run ./scripts/install.sh first to prepare your data directory}
-      MINEMATE_LAN_IP: ${MINEMATE_LAN_IP:?Run ./scripts/install.sh first}
+      MINEMATE_HOST_DATA_PATH: ${MINEMATE_HOST_DATA_PATH:-auto}
+      MINEMATE_LAN_IP: ${MINEMATE_LAN_IP:?Set your Docker host LAN address in .env}
       MINEMATE_DOCKER_ENDPOINT: http://socket-proxy:2375
-      MINEMATE_RUNTIME_IMAGE: ${MINEMATE_IMAGE:-minemate:0.1.0}
+      MINEMATE_SERVER_NETWORK: ${MINEMATE_SERVER_NETWORK:-minemate-servers}
+      MINEMATE_RUNTIME_IMAGE: ${MINEMATE_IMAGE:-ghcr.io/elias02345/minemate:0.1.0}
       MINEMATE_JAVA_PORT_START: ${MINEMATE_JAVA_PORT_START:-25565}
       MINEMATE_JAVA_PORT_END: ${MINEMATE_JAVA_PORT_END:-65535}
       MINEMATE_BEDROCK_PORT_START: ${MINEMATE_BEDROCK_PORT_START:-19132}
@@ -28,7 +39,10 @@ services:
       - control
       - worlds
     depends_on:
-      - socket-proxy
+      prepare-data:
+        condition: service_completed_successfully
+      socket-proxy:
+        condition: service_healthy
     cap_drop:
       - ALL
     security_opt:
@@ -70,9 +84,25 @@ services:
       - control
     security_opt:
       - no-new-privileges:true
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "-Y",
+          "off",
+          "-q",
+          "-O",
+          "/dev/null",
+          "http://127.0.0.1:2375/_ping",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
 networks:
   control:
     internal: true
   worlds:
-    name: minemate-servers
+    name: ${MINEMATE_SERVER_NETWORK:-minemate-servers}
     driver: bridge

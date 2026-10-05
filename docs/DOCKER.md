@@ -1,7 +1,7 @@
 # Docker deployment
 
-MineMate uses the Docker Engine HTTP API v1.49. Docker 25+ supports the required
-calls. This implementation was tested against Engine 28.4.0. Compose uses a
+MineMate negotiates the Docker Engine API from v1.44 through v1.49. Docker 25+
+supports the required calls. This implementation was tested against Engine 28.4.0. Compose uses a
 non-root MineMate container with a read-only root, a bounded `/tmp`, all
 capabilities dropped, and `no-new-privileges`.
 
@@ -28,44 +28,98 @@ host-equivalent capability; the socket proxy reduces exposed endpoints but is
 not a complete Docker authorization boundary. Do not expose it to a LAN or the
 Internet. See [security](SECURITY.md).
 
-## Prepare a host
+## Install the published image
 
-`./scripts/install.sh` writes `.env`, determines the canonical `data` path,
-detects the LAN IP and starts Compose. Existing `.env` keys are preserved. Review
-LAN detection on machines with VPNs or multiple interfaces. Set
-`MINEMATE_LAN_IP` to the address friends can actually reach. Override
-`MINEMATE_GAME_BIND_ADDRESS` through Compose's `MINEMATE_BIND_ADDRESS` to limit
-published listeners.
-
-A moved installation needs both the new bind source and new absolute host path.
-MineMate refuses creation when the host-path sentinel does not match. A remote
-Docker daemon needs storage shared at the configured host path; mounting a
-similarly named directory inside MineMate is insufficient.
-
-For HTTPS behind a trusted reverse proxy, enable `MINEMATE_SECURE_COOKIES` and
-`MINEMATE_TRUST_PROXY`, configure WebSocket forwarding and preserve the public
-Host/Origin. Trust only the reverse proxy that owns the ingress. The default
-HTTP configuration is intended for a trusted private LAN.
-
-## Build and update
+Download `docker-compose.yml` and `.env.example` from the
+[v0.1.0 release](https://github.com/Elias02345/MineMate/releases/tag/v0.1.0).
+Rename `.env.example` to `.env` and set `MINEMATE_LAN_IP` to the Docker host's
+LAN address. These are the only files needed for deployment:
 
 ```sh
-docker compose build
-docker compose up -d
+docker compose up -d --wait
 ```
 
-Published releases can set `MINEMATE_IMAGE=ghcr.io/elias02345/minemate:<version>`
-then use `docker compose pull` and `docker compose up -d`. Such a release has not
-been published by this task. Never rely on a mutable `latest` tag for rollback.
-Back up the complete data directory before changing MineMate releases. Database
-migrations are numbered and transactionally applied; do not downgrade across an
-incompatible migration without restoring the matching data copy.
+Production Compose uses `ghcr.io/elias02345/minemate:0.1.0` and contains no build
+context. Pulls are public and need no registry login. The release workflow verifies
+an anonymous pull before publishing its downloadable configuration files.
 
-A cloud build can optionally mount trusted proxy settings/CA as BuildKit secrets
-`proxyenv` and `proxyca`. Those files are not copied into the image. TLS remains
-verified. Normal hosts need neither secret. The cloud Docker daemon used here has
-a separate filesystem namespace and an unusually expensive VFS storage driver;
-its disposable runtime data is not part of a workspace snapshot.
+`prepare-data` runs once without network access and changes only the root of the
+data bind to UID/GID 1000. Existing world contents are not recursively changed.
+MineMate waits for this operation and the private socket proxy's health check,
+then starts with a read-only root and all capabilities dropped.
+
+The default data bind is `./data`. MineMate discovers its daemon-side source by
+inspecting its own container's `/data` mount. The normal Docker hostname must be
+preserved for this discovery. With a custom hostname, explicitly set
+`MINEMATE_HOST_DATA_PATH` to the matching absolute bind source. Named volumes are
+not supported for the Minecraft directory contract; use a bind directory.
+
+Set `MINEMATE_DATA_PATH` for another host directory, `MINEMATE_PORT` for another
+web port and `MINEMATE_BIND_ADDRESS` to restrict exposed listeners. Multi-interface
+or VPN hosts must use the address friends can actually reach. Separate instances
+on one Docker host need distinct data directories, web ports, game port ranges and
+`MINEMATE_SERVER_NETWORK` values.
+
+A moved installation discovers its new host path on startup. The sentinel still
+refuses mismatched mounts; automatic discovery never disables that proof. A remote
+Docker daemon must see the bind source on its own host.
+
+For HTTPS behind a trusted reverse proxy, enable `MINEMATE_SECURE_COOKIES` and
+`MINEMATE_TRUST_PROXY`, forward WebSockets and preserve Host/Origin. The default
+HTTP configuration is intended for a trusted private LAN.
+
+## Update and recover
+
+Back up the full data directory before changing MineMate versions. Set
+`MINEMATE_IMAGE` in `.env` to the selected published version, then run:
+
+```sh
+docker compose pull
+docker compose up -d --wait
+```
+
+Tagged releases also publish `latest`, but explicit version tags make upgrades
+and rollback reviewable. Database migrations are transactional; do not downgrade
+across an incompatible migration without the matching data backup. Stopping
+Compose does not stop the independent Minecraft containers; stop worlds first
+when preparing a full installation backup.
+
+## Build from source for development
+
+Source builds use a separate override, never the production install path:
+
+```sh
+git clone https://github.com/Elias02345/MineMate.git
+cd MineMate
+cp .env.example .env
+# Set MINEMATE_LAN_IP in .env.
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build --wait
+```
+
+The override builds `minemate:dev` and uses that same image for gateway sidecars.
+`npm run test:compose` exercises the production Compose definition with an
+already-built test image, a disposable directory and project, actual socket proxy,
+automatic host-path discovery and persisted authentication after recreation.
+It never accepts a Minecraft EULA.
+
+The cloud build can optionally mount trusted proxy settings/CA as BuildKit secrets
+`proxyenv` and `proxyca`; they are excluded from the image and TLS stays verified.
+Normal hosts need neither. The onboarding cloud daemon has a separate filesystem
+namespace and uses VFS; disposable runtime data is not part of workspace snapshots.
+
+## Publish a release
+
+The maintainer updates `package.json` and the Compose/default image versions, then
+pushes the matching `v<version>` Git tag. CI checks types, lint, tests, real Docker,
+production Compose, persistence and browser flows. Native amd64 and arm64 runners
+build images and publish their digests. The publish job creates the version and
+`latest` manifests, checks an anonymous pull and uploads the Compose release assets.
+
+GHCR packages initially default to private. On the first release, set the
+[MineMate package](https://github.com/users/Elias02345/packages/container/minemate/settings)
+to **Public**, then rerun the publish job if its anonymous-pull check failed. Later
+releases keep the package visibility. Never distribute registry credentials in
+Compose, `.env` examples or application images.
 
 ## External services
 

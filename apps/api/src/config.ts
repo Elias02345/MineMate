@@ -22,7 +22,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     lanIp: env.MINEMATE_LAN_IP ?? detected,
     dockerEndpoint:
       env.MINEMATE_DOCKER_ENDPOINT ?? "unix:///var/run/docker.sock",
-    network: "minemate-servers",
+    network: z
+      .string()
+      .regex(/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/)
+      .parse(env.MINEMATE_SERVER_NETWORK ?? "minemate-servers"),
     javaStart: int("MINEMATE_JAVA_PORT_START", 25565),
     javaEnd: int("MINEMATE_JAVA_PORT_END", 65535),
     bedrockStart: int("MINEMATE_BEDROCK_PORT_START", 19132),

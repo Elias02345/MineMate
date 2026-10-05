@@ -1,0 +1,8 @@
+# Source builds are an explicit development override.
+services:
+  minemate:
+    image: minemate:dev
+    pull_policy: build
+    build: .
+    environment:
+      MINEMATE_RUNTIME_IMAGE: minemate:dev

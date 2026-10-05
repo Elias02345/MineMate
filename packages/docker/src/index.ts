@@ -16,6 +16,7 @@ export interface ContainerInfo {
   NetworkSettings: { Networks: Record<string, { IPAddress: string }> };
   HostConfig: { Memory: number };
   RestartCount: number;
+  Mounts?: { Type: string; Source: string; Destination: string; RW: boolean }[];
 }
 export interface ContainerSummary {
   Id: string;
@@ -123,8 +124,55 @@ export function demux(buffer: Buffer): string {
   return out;
 }
 export class Engine implements DockerProvider {
+  private apiVersion: Promise<string> | undefined;
   constructor(private endpoint: string) {}
+  private version() {
+    if (!this.apiVersion) {
+      this.apiVersion = this.transport("GET", "/version")
+        .then((body) => {
+          const server = JSON.parse(body.toString()) as {
+            ApiVersion: string;
+            MinAPIVersion?: string;
+          };
+          if (!/^1\.\d+$/.test(server.ApiVersion))
+            throw new AppError(
+              "DOCKER_VERSION",
+              "Docker did not return a supported API version.",
+              502,
+            );
+          const minor = Math.min(49, Number(server.ApiVersion.split(".")[1]));
+          const minimum = Number(
+            (server.MinAPIVersion ?? "1.24").split(".")[1],
+          );
+          if (minor < 44 || minimum > minor)
+            throw new AppError(
+              "DOCKER_VERSION",
+              "MineMate requires Docker 25+ with an API compatible with versions 1.44–1.49.",
+              502,
+            );
+          return "1." + minor;
+        })
+        .catch((error) => {
+          this.apiVersion = undefined;
+          throw error;
+        });
+    }
+    return this.apiVersion;
+  }
   private async request(
+    method: string,
+    resource: string,
+    body?: unknown,
+    timeout = 30000,
+  ): Promise<Buffer> {
+    return this.transport(
+      method,
+      "/v" + (await this.version()) + resource,
+      body,
+      timeout,
+    );
+  }
+  private async transport(
     method: string,
     resource: string,
     body?: unknown,
@@ -139,7 +187,7 @@ export class Engine implements DockerProvider {
           agent:
             url?.protocol === "https:" ? new https.Agent() : new http.Agent(),
           method,
-          path: "/v1.49" + resource,
+          path: resource,
           socketPath: unix ? this.endpoint.slice(7) : undefined,
           hostname: url?.hostname,
           port: url?.port,

@@ -6,31 +6,49 @@ interface, guided setup, an inventory, configuration books and recovery chests.
 
 ![MineMate world overview](docs/screenshots/server.png)
 
-## Install on a Linux Docker host
+## Install with Docker Compose
 
-Requirements: Docker Engine 25 or newer, Docker Compose v2, at least 4 GB host RAM
-for a small Java world, and writable local storage. Bedrock requires amd64. Run:
+Requirements: Docker Engine 25+ and Docker Compose v2 on a Linux host. Plan at
+least 4 GB RAM for a small Java world. The MineMate image supports amd64 and arm64;
+native Bedrock requires amd64.
+
+Download just the two configuration files from the release:
 
 ```sh
-git clone https://github.com/Elias02345/MineMate.git
-cd MineMate
-./scripts/install.sh
+mkdir minemate
+cd minemate
+curl -fL -o docker-compose.yml https://github.com/Elias02345/MineMate/releases/download/v0.1.0/docker-compose.yml
+curl -fL -o .env https://github.com/Elias02345/MineMate/releases/download/v0.1.0/.env.example
 ```
 
-The installer builds the pinned MineMate image, prepares `data/`, detects the LAN
-address, and starts Compose. Open the Docker host's LAN address on port 8080.
-Create the installation owner, then use **Create a world**. Each server requires
-an explicit Minecraft EULA acceptance; MineMate never accepts it on your behalf.
-The first registration closes public account creation. The owner can add members
-and grant individual world permissions.
+Set **MINEMATE_LAN_IP** in `.env` to your Docker host's LAN address, then start:
 
-The installer builds the application image from this repository. No registry
-release has been published. The included CI builds a release image when a `v*`
-tag is pushed. See the validation record for tested runtimes and known limits.
+```sh
+docker compose up -d --wait
+```
 
-For another data directory, set both `MINEMATE_DATA_PATH` (Compose mount source)
-and the absolute `MINEMATE_HOST_DATA_PATH` in `.env`. See [Docker deployment](docs/DOCKER.md).
-Do not point MineMate at a production Minecraft directory for initial testing.
+Compose downloads **ghcr.io/elias02345/minemate:0.1.0**. You do not need Git, Node,
+source code or a local image build. The one-shot `prepare-data` service adjusts
+only the data directory's owner, then the non-root MineMate service starts. It
+reads the actual host bind path from Docker and verifies it with a sentinel.
+Your worlds, accounts, secrets and backups live under `./data`.
+
+Open your Docker host's LAN address on port **8080**, create your owner account,
+and choose **Create a world**. Each world requires explicit Minecraft EULA
+acceptance. First registration closes public signup; the owner adds members and
+per-world permissions. No Minecraft server starts during Compose installation.
+
+For another data directory, change `MINEMATE_DATA_PATH` in `.env`. The matching
+absolute Docker host path is discovered automatically. See [Docker deployment](docs/DOCKER.md)
+for reverse proxies, upgrades and custom configuration.
+
+```sh
+docker compose logs -f minemate    # startup and application logs
+docker compose down               # stop MineMate; keep ./data
+```
+
+Minecraft containers are independent: stop worlds in the UI before stopping the
+whole installation or copying its data. See [data layout](docs/DATA_LAYOUT.md).
 
 ## Use
 

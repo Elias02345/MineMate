@@ -2,12 +2,12 @@
 
 Validated in the Codex cloud environment on 2026-10-05. The published cloud
 environment restores the implementation, dependency cache, build artifacts and
-Docker images. No registry release image has been published.
+Docker images. The release pipeline publishes versioned multi-architecture images and checks public pulls before creating the downloadable Compose release.
 
 ## Automated checks
 
 - Strict TypeScript, ESLint and production frontend/backend builds pass.
-- 45 unit and API integration checks pass, covering permissions, bootstrap races,
+- 51 unit and API integration checks pass, covering permissions, bootstrap races,
   session revocation, migrations, ZIP/path validation, dependencies, hashes,
   bounded download failures, closed sockets, stale edits, imported content and
   restoring world bytes, inventory, resources and the original LAN port.
@@ -18,6 +18,11 @@ Docker images. No registry release image has been published.
   layout, reduced motion and muted sound. Their explicitly named Docker/protocol
   fixture is a test fixture rather than Minecraft.
 - The final production Docker image builds and runs with the default entrypoint.
+- The production Compose definition passes with an already-built image and a
+  fresh disposable data directory: non-root/read-only runtime, automatic data
+  ownership and daemon-side bind discovery, private socket proxy and strict
+  sentinel proof. Owner and session persist after force-recreating the app;
+  logout still revokes the persisted session. No Minecraft EULA is accepted.
 - Screenshots are in [screenshots](screenshots/).
 
 ## Actual Minecraft checks
@@ -74,7 +79,7 @@ Real worlds require MineMate inside Docker with a daemon-visible data root. The
 strict bind proof correctly rejects shell-only paths. The development app and
 browser fixture work from the checkout.
 
-GitHub main was empty at onboarding. A new cloud instance has now restored the
-prepared filesystem successfully. Dependency installation, the automated checks
-and application startup are rerun in that instance before the initial source
-publication. Draft saving and environment publication remain separate operations.
+GitHub main was empty at onboarding. A new cloud instance restored the prepared
+filesystem successfully; dependency installation, automated checks and application
+startup passed before the initial source publication. Draft saving and cloud
+environment publication remain separate operations.

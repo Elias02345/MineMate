@@ -8,6 +8,8 @@ project inputs; npm's cache is at `/tmp/minemate-npm-cache` in this cloud worksp
 npm ci
 npm run check
 npm run test:docker
+docker build -t minemate:compose-test .
+npm run test:compose
 npm run test:e2e
 npm run format
 ```

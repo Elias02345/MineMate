@@ -31,7 +31,7 @@ installed content, backup metadata, notifications, audit and update history.
 Containers have stable UUID labels; names and ports are not identities.
 
 Directories are created with mode 0700 and files normally with mode 0600, owned
-by UID/GID 1000. The installer adjusts only the data-root owner. It does not
+by UID/GID 1000. The Compose prepare-data service adjusts only the data-root owner. It does not
 recursively change existing worlds. A recovery copy must include the SQLite
 WAL/SHM files and `master.key`; losing the key prevents credential decryption.
 

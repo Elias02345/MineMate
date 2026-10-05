@@ -32,6 +32,7 @@ import { Content } from "./content.ts";
 import { Updates } from "./updates.ts";
 import { Monitor } from "./monitor.ts";
 import { S3Backups } from "./s3.ts";
+import { discoverHostDataRoot } from "./docker-storage.ts";
 export interface AppOptions {
   config?: Config;
   docker?: DockerProvider;
@@ -40,8 +41,11 @@ export interface AppOptions {
   static?: boolean;
 }
 export async function createApp(options: AppOptions = {}) {
-  const config = options.config ?? loadConfig(),
-    paths = new DataPaths(config.dataRoot, config.hostRoot);
+  const config = { ...(options.config ?? loadConfig()) },
+    docker = options.docker ?? new Engine(config.dockerEndpoint);
+  if (config.hostRoot === "auto")
+    config.hostRoot = await discoverHostDataRoot(docker, config.dataRoot);
+  const paths = new DataPaths(config.dataRoot, config.hostRoot);
   await paths.initialize();
   const store = new Store(
       path.join(config.dataRoot, "app/database/minemate.sqlite"),
@@ -49,7 +53,6 @@ export async function createApp(options: AppOptions = {}) {
     secrets = await SecretStore.open(config.dataRoot),
     events = new Events(),
     jobs = new Jobs(store, events),
-    docker = options.docker ?? new Engine(config.dockerEndpoint),
     servers = new Servers(store, docker, paths, config, secrets, jobs, events),
     backups = new Backups(servers),
     files = new Files(servers, backups),

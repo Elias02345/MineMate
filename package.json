@@ -14,7 +14,7 @@
     "dev": "node --use-env-proxy --import tsx --watch apps/api/src/main.ts",
     "dev:web": "vite --config apps/web/vite.config.ts",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint apps packages tests",
+    "lint": "eslint apps packages tests scripts",
     "format": "prettier --write apps packages tests docs *.json *.ts",
     "test": "vitest run",
     "test:e2e": "playwright test",
@@ -23,7 +23,8 @@
     "build:web": "vite build --config apps/web/vite.config.ts",
     "build:api": "esbuild apps/api/src/main.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/api/main.js && esbuild apps/api/src/gateway-main.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/gateway/main.js",
     "start": "node --use-env-proxy dist/api/main.js",
-    "check": "npm run typecheck && npm run lint && npm test && npm run build"
+    "check": "npm run typecheck && npm run lint && npm test && npm run build",
+    "test:compose": "node --import tsx scripts/compose-smoke.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1146.0",
