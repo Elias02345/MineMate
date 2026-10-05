@@ -1,6 +1,6 @@
 # Install a prebuilt Docker image archive
 
-Release downloads provide ready-to-load MineMate images for `linux/amd64` and
+The release links provide ready-to-load MineMate images for `linux/amd64` and
 `linux/arm64`, alongside the normal registry-based Compose installation. Use
 these archives when the registry image is unavailable or to prepare a host
 offline. No Git checkout, Node installation or source build is required.
@@ -8,6 +8,8 @@ offline. No Git checkout, Node installation or source build is required.
 For 0.3.0, GitHub Actions initially failed to assign hosted runners during the
 [Actions incident](https://www.githubstatus.com/). The image archives provide an
 installation path while the native registry publishing workflow is retried.
+These fallback downloads are stored on the dedicated `docker-images-v0.3.0`
+artifact branch; the application source stays on `main`.
 
 ## Existing installation
 
@@ -26,7 +28,7 @@ case "$(docker info --format '{{.Architecture}}')" in
   aarch64|arm64) minemate_arch=arm64 ;;
   *) echo 'This release supports amd64 and arm64 Docker hosts.'; exit 1 ;;
 esac
-minemate_release=https://github.com/Elias02345/MineMate/releases/download/v0.3.0
+minemate_release=https://raw.githubusercontent.com/Elias02345/MineMate/docker-images-v0.3.0
 minemate_archive="minemate-0.3.0-linux-${minemate_arch}.tar.gz"
 curl -fL --retry 3 -o "$minemate_archive" "$minemate_release/$minemate_archive"
 curl -fL --retry 3 -o SHA256SUMS "$minemate_release/SHA256SUMS"
@@ -41,8 +43,8 @@ Loading an image does not replace the persistent data directory.
 
 ## New installation
 
-Create your installation directory. Download `docker-compose.yml` and
-`default.env.example` from the same release, save the latter as `.env`, and set
+Create your installation directory. Download [docker-compose.yml](https://raw.githubusercontent.com/Elias02345/MineMate/docker-images-v0.3.0/docker-compose.yml) and
+[default.env.example](https://raw.githubusercontent.com/Elias02345/MineMate/docker-images-v0.3.0/default.env.example), save the latter as `.env`, and set
 `MINEMATE_LAN_IP` to your Docker host's LAN address. Then follow the archive-load
 commands above. Compose prepares the persistent `data` directory automatically.
 
