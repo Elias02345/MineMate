@@ -53,6 +53,10 @@ existing `.env`, then run `docker compose pull` and `docker compose up -d --wait
 Keep your existing data directory and LAN settings. Open `http://HOST-IP:18080`.
 An older `.env` with `MINEMATE_PORT=8080` keeps that port until you change it.
 
+If the registry image is unavailable, the release also provides **ready-to-load
+amd64 and arm64 Docker image archives** with SHA-256 checksums. Load the matching
+archive, then run Compose. See [the image archive guide](docs/IMAGE_ARCHIVES.md).
+
 ## Install with Docker Compose
 
 Requirements: Docker Engine 25+ and Docker Compose v2 on a Linux host. Plan at

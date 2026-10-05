@@ -25,6 +25,22 @@ the UI upgrade does not require starting new Minecraft servers.
 
 ## Automated checks
 
+For 0.3.0, the final local checks below pass. GitHub's hosted-runner assignment
+failed during its reported Actions incident: the checks job received no runner
+after multiple attempts, and the native image/publish jobs were skipped. Both
+main and tag workflows were retried. This infrastructure failure is separate
+from the earlier combined-viewport browser-test timeout, resolved by checking
+each viewport independently with the same assertions.
+
+Ready-to-load amd64 and arm64 Docker image archives are supplied as an alternate
+release installation. The amd64 archive contains the tested production image.
+The arm64 archive combines the official arm64 Node base with the same production
+app/dependencies and supplied arm64 native modules. Its actual arm64 Node runtime
+passes the full Compose ownership/proxy/bootstrap/session persistence smoke
+through a test-only QEMU wrapper; the emulator is excluded from the archive.
+Native arm64 release CI and anonymous registry pulls remain pending until GitHub
+can assign runners. See [the image archive guide](IMAGE_ARCHIVES.md).
+
 - Strict TypeScript, ESLint and production frontend/backend builds pass.
 - 63 unit and API integration checks pass, covering permissions, bootstrap races,
   session revocation, migrations, ZIP/path validation, dependencies, hashes,

@@ -43,6 +43,10 @@ Production Compose uses `ghcr.io/elias02345/minemate:0.3.0` and contains no buil
 context. Pulls are public and need no registry login. The release workflow verifies
 an anonymous pull before publishing its downloadable configuration files.
 
+Ready-to-load amd64 and arm64 image archives are also available in the 0.3.0
+release. See [the archive installation guide](IMAGE_ARCHIVES.md) for a verified
+`docker load` installation when the registry publishing service is delayed.
+
 `prepare-data` runs once without network access and changes only the root of the
 data bind to UID/GID 1000. Existing world contents are not recursively changed.
 MineMate waits for this operation and the private socket proxy's health check,
