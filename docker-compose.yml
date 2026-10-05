@@ -1,0 +1,78 @@
+name: minemate
+services:
+  minemate:
+    image: ${MINEMATE_IMAGE:-minemate:0.1.0}
+    build: .
+    init: true
+    restart: unless-stopped
+    environment:
+      MINEMATE_PORT: 8080
+      MINEMATE_DATA_PATH: /data
+      MINEMATE_HOST_DATA_PATH: ${MINEMATE_HOST_DATA_PATH:?Run ./scripts/install.sh first to prepare your data directory}
+      MINEMATE_LAN_IP: ${MINEMATE_LAN_IP:?Run ./scripts/install.sh first}
+      MINEMATE_DOCKER_ENDPOINT: http://socket-proxy:2375
+      MINEMATE_RUNTIME_IMAGE: ${MINEMATE_IMAGE:-minemate:0.1.0}
+      MINEMATE_JAVA_PORT_START: ${MINEMATE_JAVA_PORT_START:-25565}
+      MINEMATE_JAVA_PORT_END: ${MINEMATE_JAVA_PORT_END:-65535}
+      MINEMATE_BEDROCK_PORT_START: ${MINEMATE_BEDROCK_PORT_START:-19132}
+      MINEMATE_BEDROCK_PORT_END: ${MINEMATE_BEDROCK_PORT_END:-65535}
+      MINEMATE_GAME_BIND_ADDRESS: ${MINEMATE_BIND_ADDRESS:-0.0.0.0}
+      MINEMATE_SECURE_COOKIES: ${MINEMATE_SECURE_COOKIES:-false}
+      MINEMATE_TRUST_PROXY: ${MINEMATE_TRUST_PROXY:-false}
+      TZ: ${TZ:-Europe/Berlin}
+    ports:
+      - ${MINEMATE_BIND_ADDRESS:-0.0.0.0}:${MINEMATE_PORT:-8080}:8080
+    volumes:
+      - ${MINEMATE_DATA_PATH:-./data}:/data
+    networks:
+      - control
+      - worlds
+    depends_on:
+      - socket-proxy
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=256m
+    stop_grace_period: 5m
+  socket-proxy:
+    image: tecnativa/docker-socket-proxy:v0.5.0
+    restart: unless-stopped
+    environment:
+      CONTAINERS: 1
+      IMAGES: 1
+      NETWORKS: 1
+      EXEC: 1
+      INFO: 1
+      VERSION: 1
+      PING: 1
+      POST: 1
+      AUTH: 0
+      BUILD: 0
+      COMMIT: 0
+      CONFIGS: 0
+      DISTRIBUTION: 0
+      EVENTS: 0
+      NODES: 0
+      PLUGINS: 0
+      SECRETS: 0
+      SERVICES: 0
+      SESSION: 0
+      SWARM: 0
+      SYSTEM: 0
+      TASKS: 0
+      VOLUMES: 0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - control
+    security_opt:
+      - no-new-privileges:true
+networks:
+  control:
+    internal: true
+  worlds:
+    name: minemate-servers
+    driver: bridge

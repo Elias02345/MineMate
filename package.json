@@ -1,0 +1,68 @@
+{
+  "name": "minemate",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.19.0 <25"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "node --use-env-proxy --import tsx --watch apps/api/src/main.ts",
+    "dev:web": "vite --config apps/web/vite.config.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint apps packages tests",
+    "format": "prettier --write apps packages tests docs *.json *.ts",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:docker": "RUN_DOCKER_TESTS=1 vitest run tests/docker.integration.test.ts",
+    "build": "npm run build:web && npm run build:api",
+    "build:web": "vite build --config apps/web/vite.config.ts",
+    "build:api": "esbuild apps/api/src/main.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/api/main.js && esbuild apps/api/src/gateway-main.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/gateway/main.js",
+    "start": "node --use-env-proxy dist/api/main.js",
+    "check": "npm run typecheck && npm run lint && npm test && npm run build"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "3.1146.0",
+    "@fastify/cookie": "11.1.2",
+    "@fastify/multipart": "10.1.2",
+    "@fastify/rate-limit": "11.2.0",
+    "@fastify/static": "10.1.5",
+    "@fastify/websocket": "11.3.3",
+    "@radix-ui/react-dialog": "1.1.23",
+    "@tanstack/react-query": "5.104.1",
+    "@tanstack/react-router": "1.170.41",
+    "argon2": "0.45.1",
+    "fastify": "5.12.5",
+    "lucide-react": "1.52.0",
+    "motion": "14.0.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "yaml": "2.9.1",
+    "yauzl": "3.4.0",
+    "yazl": "3.3.1",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/node": "24.19.1",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@types/ws": "8.18.2",
+    "@types/yauzl": "3.4.0",
+    "@types/yazl": "3.3.1",
+    "@vitejs/plugin-react": "6.1.2",
+    "esbuild": "0.28.2",
+    "eslint": "10.12.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "prettier": "3.9.9",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.71.0",
+    "vite": "8.3.2",
+    "vitest": "5.0.3"
+  }
+}

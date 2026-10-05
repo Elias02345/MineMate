@@ -1,0 +1,34 @@
+:root {
+  --ink: #303c30;
+  --ink-muted: #64705d;
+  --paper: #f0f1e6;
+  --surface: #fffdf4;
+  --cream: #f6f2e3;
+  --grass: #527d42;
+  --grass-dark: #345f33;
+  --grass-pale: #e9f1df;
+  --dirt: #966841;
+  --stone: #818979;
+  --water: #438d9f;
+  --portal: #9b71b7;
+  --redstone: #ae5145;
+  --border: #dce0cc;
+  --border-strong: #bcc5ab;
+  --shadow-panel: 0 3px 0 #d7ddc633, 0 6px 15px #40563805;
+  --radius: 5px;
+  --radius-panel: 8px;
+  --font-body: "Trebuchet MS", system-ui, -apple-system, sans-serif;
+  --font-heading: "Trebuchet MS", system-ui, sans-serif;
+  --font-mono: "Cascadia Code", "DejaVu Sans Mono", monospace;
+  --motion-instant: 120ms;
+  --motion-small: 180ms;
+  --motion-panel: 240ms;
+  --motion-page: 320ms;
+  --motion-celebration: 700ms;
+  --motion-ambient: 9000ms;
+  --pixel: 4px;
+  --space: 8px;
+  --layer-header: 30;
+  --layer-modal: 100;
+  --lighting: 1;
+}

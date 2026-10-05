@@ -1,0 +1,15 @@
+.git
+node_modules
+data
+.env
+dist
+apps/web/dist
+test-results
+playwright-report
+coverage
+*.log
+.cache
+tests
+docs
+.github
+scripts
