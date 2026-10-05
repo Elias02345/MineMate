@@ -41,6 +41,14 @@ through a test-only QEMU wrapper; the emulator is excluded from the archive.
 Native arm64 release CI and anonymous registry pulls remain pending until GitHub
 can assign runners. See [the image archive guide](IMAGE_ARCHIVES.md).
 
+Independent public downloads of both image archives, Compose, the environment
+example, installation guide and checksums match the prepared files byte for byte.
+Archive metadata confirms each CPU architecture, image tag and source revision.
+The exported amd64 archive also loads back into Docker and passes a fresh
+production Compose smoke. Direct-download artifacts are on the separate
+`docker-images-v0.3.0` branch because the cloud GitHub asset-upload path rejected
+uploads with `Bad Content-Length`; Git publication and anonymous downloads work.
+
 - Strict TypeScript, ESLint and production frontend/backend builds pass.
 - 63 unit and API integration checks pass, covering permissions, bootstrap races,
   session revocation, migrations, ZIP/path validation, dependencies, hashes,

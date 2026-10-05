@@ -68,11 +68,14 @@ Download just the two configuration files from the release:
 ```sh
 mkdir minemate
 cd minemate
-curl -fL -o docker-compose.yml https://github.com/Elias02345/MineMate/releases/download/v0.3.0/docker-compose.yml
-curl -fL -o .env https://github.com/Elias02345/MineMate/releases/download/v0.3.0/default.env.example
+curl -fL -o docker-compose.yml https://raw.githubusercontent.com/Elias02345/MineMate/docker-images-v0.3.0/docker-compose.yml
+curl -fL -o .env https://raw.githubusercontent.com/Elias02345/MineMate/docker-images-v0.3.0/default.env.example
 ```
 
 Set **MINEMATE_LAN_IP** in `.env` to your Docker host's LAN address, then start:
+
+If registry publishing is still pending, first load the matching prebuilt image
+with [the archive installation guide](docs/IMAGE_ARCHIVES.md).
 
 ```sh
 docker compose up -d --wait
