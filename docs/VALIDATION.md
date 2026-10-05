@@ -26,18 +26,27 @@ the UI upgrade does not require starting new Minecraft servers.
 ## Automated checks
 
 - Strict TypeScript, ESLint and production frontend/backend builds pass.
-- 51 unit and API integration checks pass, covering permissions, bootstrap races,
+- 62 unit and API integration checks pass, covering permissions, bootstrap races,
   session revocation, migrations, ZIP/path validation, dependencies, hashes,
   bounded download failures, closed sockets, stale edits, imported content and
   restoring world bytes, inventory, resources and the original LAN port.
+  Upload coverage includes atomic multi-JAR validation, installer loader/version
+  checks, Java and Bedrock folder imports, nested ZIP worlds, dimension files,
+  traversal rejection and recovery after a failed imported-world startup.
 - The default suite skips its opt-in Docker test. `npm run test:docker` passes
   separately with an actual, uniquely owned, temporary Engine container.
-- Five browser tests pass: desktop onboarding, wizard, lifecycle, console,
+- Eight browser tests pass: desktop onboarding, wizard, lifecycle, console,
   settings, backup/restore, CloudGate endpoint and user creation; German mobile
   layout, reduced motion and muted sound. Their explicitly named Docker/protocol
   fixture is a test fixture rather than Minecraft. Companion and audio coverage
   is described above and in [the adventure UI guide](ADVENTURE_UI.md).
+  Upload tests create NeoForge using its own installer, add three mod JARs in a
+  separate batch and import worlds through ZIP and native directory selection.
+  All eleven management tabs and all wizard steps remain reachable at 320×568,
+  768×600, 1024×600 and 1920×1080. Dialog actions stay outside their scroll area.
 - The final production Docker image builds and runs with the default entrypoint.
+- The combined production app starts on its default port 18080 and reports
+  version 0.3.0. Compose publishes host port 18080 to the container's port 8080.
 - The production Compose definition passes with an already-built image and a
   fresh disposable data directory: non-root/read-only runtime, automatic data
   ownership and daemon-side bind discovery, private socket proxy and strict
@@ -63,6 +72,10 @@ creation, file removal, restart and confirmed server deletion all pass.
 | Modrinth Spark     | Official API plus JAR manifest resolve Fabric API; verified installation and startup succeed.                                            |
 | ServerCore         | Verified dependency installation and actual startup succeed.                                                                             |
 | MRPACK             | Verified Fabric API file, loader/version and configuration override import; Minecraft starts.                                            |
+| NeoForge upload    | Publisher-verified NeoForge 21.1.255 installer for Java 1.21.1 starts; readiness and RCON succeed.                                       |
+| Bulk mod upload    | Publisher-verified ModernFix 5.27.24 and FerriteCore 7.0.3 install together; the actual NeoForge server restarts successfully.           |
+| World folder       | All 22 files of the actual saved NeoForge world import through folder upload; Minecraft restarts successfully.                           |
+| World ZIP          | The same actual world exports and reimports as ZIP; readiness and RCON succeed again.                                                    |
 | Backup/restore     | Consistent backup restores saved configuration and inventory; real Minecraft restarts.                                                   |
 | Sleep/wake         | TCP gateway presents sleeping status; login traffic requests startup and the real server becomes ready.                                  |
 | Loader update      | An available Fabric loader installs and starts.                                                                                          |
@@ -75,7 +88,7 @@ creation, file removal, restart and confirmed server deletion all pass.
 ## Validation limits and supported alternatives
 
 No full game client joined a world, so protocol readiness does not certify
-gameplay or authenticated login. Forge, NeoForge, Paper, Purpur, arbitrary custom
+gameplay or authenticated login. Forge, Paper, Purpur, arbitrary custom
 JARs, older Java runtimes and ARM64 Java images have adapters but were not each
 tested with a live game runtime. Bedrock requires amd64. Retest current Bedrock
 1.26 on the intended deployment network; the older successful version does not
@@ -98,6 +111,11 @@ The cloud Docker daemon sees a different filesystem namespace from the shell.
 Real worlds require MineMate inside Docker with a daemon-visible data root. The
 strict bind proof correctly rejects shell-only paths. The development app and
 browser fixture work from the checkout.
+
+For the NeoForge installer, the test driver additionally supplies Java HTTP/HTTPS
+proxy properties and a trusted Java CA store. Uploaded installers retain their
+runtime's version cache, so a normal restart does not reinstall the same loader.
+These cloud-specific network settings remain confined to the test driver.
 
 GitHub main was empty at onboarding. A new cloud instance restored the prepared
 filesystem successfully; dependency installation, automated checks and application

@@ -1,5 +1,10 @@
 import type { ServerConfig } from "../../shared/src/index.ts";
-import { javaRuntime, AppError } from "../../shared/src/index.ts";
+import {
+  javaRuntime,
+  AppError,
+  usesUploadedServerJar,
+  serverJarFilename,
+} from "../../shared/src/index.ts";
 import {
   labels,
   assertOwned,
@@ -60,7 +65,17 @@ export class JavaMinecraftProvider implements MinecraftRuntimeProvider {
       const key = keys[c.software];
       if (key) env[key] = c.loaderVersion;
     }
-    if (c.software === "CUSTOM") env.CUSTOM_SERVER = "/data/custom-server.jar";
+    if (usesUploadedServerJar(c)) {
+      const file = "/data/" + serverJarFilename(c);
+      if (c.software === "FORGE") {
+        env.FORGE_INSTALLER = file;
+      } else if (c.software === "NEOFORGE") {
+        env.NEOFORGE_INSTALLER = file;
+      } else {
+        env.TYPE = "CUSTOM";
+        env.CUSTOM_SERVER = file;
+      }
+    }
     return {
       User: "1000:1000",
       Image: `itzg/minecraft-server:${JAVA_IMAGE_VERSION}-java${javaRuntime(c.version, c.java)}`,
@@ -212,7 +227,7 @@ export function diagnose(
       "Stop the server and restore a verified backup.",
     ],
     [
-      /download.*(fail|error)|UnknownHostException/i,
+      /download.*(fail|error)|UnknownHostException|java\.net\.ConnectException|SSLHandshakeException/i,
       "Download failed",
       "A download service could not be reached.",
       "Check network access and retry.",

@@ -1,0 +1,307 @@
+/* Keep management controls reachable at narrow widths, short heights and browser zoom. */
+.app-shell {
+  min-height: 0;
+}
+.achievement-toast {
+  z-index: 90;
+}
+.pixel-effects {
+  z-index: 95;
+}
+.main-content {
+  min-width: 0;
+  scroll-padding-block: 20px;
+}
+.page,
+.mine-panel,
+.tab-scene,
+.field,
+.field input,
+.field select,
+.form-grid > *,
+.review-grid > *,
+.server-title,
+.server-title > div,
+.section-heading > *,
+.tabs-toolbar > *,
+.market-search > *,
+.settings-layout > *,
+.server-overview > * {
+  min-width: 0;
+}
+.field input,
+.field select,
+.field textarea,
+input[type="file"] {
+  max-width: 100%;
+}
+h1,
+h2,
+h3,
+.notice,
+.error-notice,
+.drop-zone,
+.review-grid b,
+.world-manager-grid h3,
+.file-name,
+.connection-target code,
+.world-window-label code,
+.inventory-list small {
+  overflow-wrap: anywhere;
+}
+.server-heading,
+.section-heading,
+.server-controls,
+.tabs-toolbar,
+.sticky-actions,
+.inventory-list > div,
+.file-row {
+  flex-wrap: wrap;
+}
+.server-title {
+  flex: 1 1 260px;
+}
+.server-controls {
+  flex: 0 1 auto;
+}
+.mine-tabs {
+  flex-wrap: wrap;
+  overflow: visible;
+  min-width: 0;
+}
+.mine-tabs > button {
+  white-space: normal;
+  text-align: left;
+}
+.tabs-toolbar .mine-tabs {
+  flex: 1 1 100%;
+}
+.tabs-toolbar .compact-checkbox {
+  margin-block: 0 8px;
+}
+.server-overview {
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+}
+.market-search {
+  flex-wrap: wrap;
+}
+.market-search > .field {
+  flex: 1 1 160px;
+}
+.market-search > .field:nth-child(2) {
+  flex: 1 1 140px;
+}
+.form-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+}
+.file-name {
+  overflow-wrap: anywhere;
+}
+.file-actions {
+  flex-wrap: wrap;
+}
+.slider-field {
+  flex-wrap: wrap;
+}
+.slider-field input {
+  min-width: 0;
+}
+.mine-modal {
+  display: flex;
+  flex-direction: column;
+  width: min(760px, calc(100vw - 24px));
+  max-height: calc(100dvh - 24px);
+  overflow: hidden;
+  padding: clamp(14px, 3vw, 28px);
+}
+.modal-heading {
+  flex: 0 0 auto;
+  min-width: 0;
+  margin-bottom: 12px;
+}
+.modal-heading h2 {
+  min-width: 0;
+  margin-bottom: 0;
+}
+.modal-heading .mine-button {
+  flex-shrink: 0;
+}
+.modal-body {
+  min-height: 0;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 4px 4px 8px;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.modal-body > :last-child {
+  margin-bottom: 0;
+}
+.modal-footer {
+  flex: 0 0 auto;
+  padding-top: 12px;
+}
+.modal-footer .wizard-controls {
+  margin: 0;
+  padding-top: 12px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.modal-footer .mine-button {
+  flex: 1 1 120px;
+}
+.wizard-progress {
+  margin-block: 4px 18px;
+}
+.wizard-progress > div {
+  min-width: 0;
+}
+.upload-files {
+  max-height: 180px;
+  overflow-y: auto;
+  margin: 12px 0;
+  padding: 0;
+  list-style: none;
+}
+.upload-files li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 3px;
+  border-bottom: 1px solid var(--border);
+}
+.upload-files li span {
+  min-width: 0;
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+.upload-files .mine-button {
+  flex-shrink: 0;
+  min-height: 32px;
+  padding: 5px 8px;
+}
+.upload-summary {
+  margin: 12px 0;
+}
+.upload-progress {
+  display: grid;
+  gap: 8px;
+  margin-block: 12px;
+}
+.upload-progress progress {
+  width: 100%;
+  accent-color: var(--grass);
+}
+.upload-kind-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.drop-zone {
+  width: 100%;
+  min-width: 0;
+}
+.drop-zone.dragging {
+  outline: 3px dashed var(--grass);
+  background: var(--grass-pale);
+}
+.drop-zone input {
+  width: 100%;
+}
+.server-upload-actions {
+  margin-bottom: 16px;
+}
+@media (max-width: 1100px) {
+  .server-overview {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 600px) {
+  .form-grid,
+  .review-grid,
+  .choice-grid,
+  .market-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .section-heading {
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .section-heading > .mine-button {
+    flex: 1 1 100%;
+  }
+  .server-controls {
+    width: 100%;
+  }
+  .server-controls .mine-button {
+    flex: 1 1 100px;
+  }
+  .mine-tabs > button {
+    flex: 1 1 120px;
+  }
+  .mine-panel {
+    padding: 16px;
+  }
+  .server-heading {
+    padding: 16px;
+  }
+  .setting-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .setting-control {
+    flex: 0 1 auto;
+    width: 100%;
+    max-width: none;
+  }
+  .settings-toolbar,
+  .sticky-actions {
+    align-items: stretch;
+  }
+  .sticky-actions > .mine-button {
+    flex: 1 1 120px;
+  }
+  .file-name {
+    min-width: 0;
+    flex-basis: 100%;
+  }
+  .inventory-list > div > span {
+    flex-basis: calc(100% - 75px);
+  }
+  .inventory-list > div > .mine-button {
+    margin-left: auto;
+  }
+  .slider-field > span {
+    width: auto;
+  }
+  .slider-field input {
+    flex: 1 1 130px;
+  }
+  .auth-card {
+    width: 100%;
+    min-width: 0;
+  }
+  .achievement-toast {
+    max-width: calc(100vw - 24px);
+  }
+  .companion-menu {
+    max-width: calc(100vw - 24px);
+    max-height: calc(100dvh - 120px);
+    overflow-y: auto;
+  }
+}
+@media (max-height: 600px) {
+  .mine-modal {
+    max-height: calc(100dvh - 16px);
+  }
+  .modal-heading {
+    margin-bottom: 8px;
+  }
+  .wizard-progress {
+    margin-bottom: 12px;
+  }
+  .auth-world {
+    padding-top: 20px;
+  }
+}

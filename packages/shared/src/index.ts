@@ -58,6 +58,7 @@ export const serverConfigSchema = z
     name: z.string().trim().min(1).max(64),
     edition: z.enum(editions),
     software: z.enum(softwares),
+    serverSource: z.enum(["download", "upload"]).default("download"),
     version: z
       .string()
       .max(40)
@@ -84,6 +85,12 @@ export const serverConfigSchema = z
         message: "Software does not support this edition",
         path: ["software"],
       });
+    if (c.edition === "BEDROCK" && c.serverSource === "upload")
+      ctx.addIssue({
+        code: "custom",
+        message: "Bedrock does not use server JARs",
+        path: ["serverSource"],
+      });
     if (c.edition === "JAVA" && c.version === "LATEST")
       ctx.addIssue({
         code: "custom",
@@ -98,6 +105,12 @@ export const serverConfigSchema = z
       });
   });
 export type ServerConfig = z.infer<typeof serverConfigSchema>;
+export const usesUploadedServerJar = (c: ServerConfig) =>
+  c.software === "CUSTOM" || c.serverSource === "upload";
+export const serverJarFilename = (c: ServerConfig) =>
+  ["FORGE", "NEOFORGE"].includes(c.software)
+    ? "server-installer.jar"
+    : "custom-server.jar";
 export interface User {
   id: string;
   username: string;

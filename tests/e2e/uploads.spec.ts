@@ -1,0 +1,320 @@
+import { test, expect, type Page } from "@playwright/test";
+import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import yazl from "yazl";
+import type { Server, Operation } from "../../packages/shared/src/index.ts";
+
+async function archive(entries: Record<string, string>) {
+  const zip = new yazl.ZipFile(),
+    chunks: Buffer[] = [];
+  for (const [name, text] of Object.entries(entries))
+    zip.addBuffer(Buffer.from(text), name);
+  const done = new Promise<Buffer>((resolve, reject) => {
+    zip.outputStream.on("data", (chunk: Buffer) => chunks.push(chunk));
+    zip.outputStream.on("error", reject);
+    zip.outputStream.on("end", () => resolve(Buffer.concat(chunks)));
+  });
+  zip.end();
+  return done;
+}
+async function login(page: Page) {
+  await page.route("**/api/v1/marketplace?**", (route) =>
+    route.fulfill({ json: [] }),
+  );
+  await page.goto("/");
+  await page.getByLabel("Username", { exact: true }).fill("Owner");
+  await page
+    .getByLabel("Password (at least 12 characters)")
+    .fill("a-strong-test-password");
+  const setup = await page
+    .getByRole("button", { name: "Let’s build something" })
+    .count();
+  await page
+    .getByRole("button", {
+      name: setup ? "Let’s build something" : "Enter your worlds",
+    })
+    .click();
+  await page
+    .getByRole("heading", { name: "A little corner of the Overworld." })
+    .waitFor();
+}
+async function finish(page: Page, serverId: string, operation: Operation) {
+  await expect
+    .poll(async () => {
+      const response = await page.request.get(
+          `/api/v1/operations?serverId=${serverId}`,
+        ),
+        operations = (await response.json()) as Operation[];
+      return operations.find((o) => o.id === operation.id)?.status;
+    })
+    .toBe("SUCCEEDED");
+}
+async function makeServer(page: Page, name: string) {
+  const auth = (await (
+    await page.request.get("/api/v1/auth/status")
+  ).json()) as { csrf: string };
+  const response = await page.request.post("/api/v1/servers", {
+    headers: { "x-csrf-token": auth.csrf, origin: "http://127.0.0.1:8091" },
+    data: {
+      name,
+      edition: "JAVA",
+      software: "FABRIC",
+      version: "1.21.1",
+      memoryMb: 1024,
+      cpu: 1,
+      eula: true,
+    },
+  });
+  expect(response.status()).toBe(202);
+  const result = (await response.json()) as {
+    server: Server;
+    operation: Operation;
+  };
+  await finish(page, result.server.id, result.operation);
+  return result.server;
+}
+async function fit(page: Page, selector: string) {
+  expect(
+    await page
+      .locator(selector)
+      .evaluateAll((elements) =>
+        elements.every((e) => e.scrollWidth <= e.clientWidth + 2),
+      ),
+    selector + " clipped content",
+  ).toBe(true);
+}
+
+test("creates NeoForge with an uploaded installer and separately bulk uploads mods", async ({
+  page,
+}) => {
+  await login(page);
+  await page.setViewportSize({ width: 390, height: 680 });
+  await page
+    .getByRole("button", { name: "Create a world", exact: true })
+    .first()
+    .click();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByRole("button", { name: /Make it your own/ }).click();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "Server software", exact: true })
+    .selectOption("NEOFORGE");
+  await page
+    .getByRole("combobox", { name: "Server installation", exact: true })
+    .selectOption("upload");
+  const installer = await archive({
+    "META-INF/MANIFEST.MF":
+      "Manifest-Version: 1.0\nMain-Class: net.neoforged.installer.Main\n",
+    "install_profile.json": JSON.stringify({
+      minecraft: "1.21.1",
+      path: "net.neoforged:neoforge:21.1.200",
+    }),
+  });
+  await page.getByLabel("Enter a specific version").fill("1.21.1");
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "neoforge.jar",
+    mimeType: "application/java-archive",
+    buffer: installer,
+  });
+  await fit(page, ".modal-body");
+  await page.screenshot({
+    path: "docs/screenshots/server-jar-upload.png",
+    animations: "disabled",
+  });
+  for (let i = 0; i < 3; i++)
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByLabel("I have read and accept").check();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByLabel("Give your world a name").fill("Uploaded NeoForge");
+  await page.getByRole("button", { name: "Craft this world" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Uploaded NeoForge", exact: true }),
+  ).toBeVisible();
+  const serverId = page.url().split("/").at(-1)!;
+  const server = (await (
+    await page.request.get(`/api/v1/servers/${serverId}`)
+  ).json()) as Server;
+  expect(server.config.software).toBe("NEOFORGE");
+  expect(server.config.serverSource).toBe("upload");
+  await page.getByRole("tab", { name: "Inventory", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Upload mod / plugin JARs", exact: true })
+    .click();
+  const mod = await archive({
+    "META-INF/neoforge.mods.toml": "modLoader=javafml",
+    "example/Mod.class": "controlled fixture",
+  });
+  await page.locator('input[type="file"]').setInputFiles([
+    {
+      name: "first-mod.jar",
+      mimeType: "application/java-archive",
+      buffer: mod,
+    },
+    {
+      name: "second-mod.jar",
+      mimeType: "application/java-archive",
+      buffer: mod,
+    },
+  ]);
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "third-mod.jar",
+    mimeType: "application/java-archive",
+    buffer: mod,
+  });
+  await expect(page.locator(".upload-files li")).toHaveCount(3);
+  await page
+    .getByLabel("I trust these files and confirm their installation.")
+    .check();
+  await fit(page, ".modal-body");
+  await page.screenshot({
+    path: "docs/screenshots/bulk-mod-upload.png",
+    animations: "disabled",
+  });
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Upload", exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.locator(".inventory-list")).toContainText("first-mod.jar");
+  await expect(page.locator(".inventory-list")).toContainText("third-mod.jar");
+  expect(
+    await (
+      await page.request.get(`/api/v1/servers/${serverId}/content`)
+    ).json(),
+  ).toHaveLength(3);
+});
+
+test("uploads saved worlds through ZIP and native folder selection", async ({
+  page,
+}) => {
+  await login(page);
+  const server = await makeServer(page, "Imported worlds");
+  await page.goto(`/servers/${server.id}`);
+  await page.getByRole("tab", { name: "Worlds", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Bring your world", exact: true })
+    .click();
+  const zip = await archive({
+    "Wrapped/Saved world/level.dat": "world data",
+    "Wrapped/Saved world/region/r.0.0.mca": "region",
+  });
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "saved-world.zip",
+    mimeType: "application/zip",
+    buffer: zip,
+  });
+  await page
+    .getByLabel("I trust these files and confirm their installation.")
+    .check();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Upload", exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.locator(".world-manager-grid")).toContainText("world");
+  const temporary = await mkdtemp(
+      path.join(os.tmpdir(), "minemate-browser-world-"),
+    ),
+    folder = path.join(temporary, "Saved world");
+  try {
+    await mkdir(path.join(folder, "region"), { recursive: true });
+    await writeFile(path.join(folder, "level.dat"), "folder world");
+    await writeFile(path.join(folder, "region/r.4.5.mca"), "folder region");
+    await page
+      .getByRole("button", { name: "Bring your world", exact: true })
+      .click();
+    await page
+      .getByRole("combobox", { name: "Upload type", exact: true })
+      .selectOption("world-folder");
+    await page.locator('input[type="file"]').setInputFiles(folder);
+    await expect(page.locator(".upload-files")).toContainText(
+      "Saved world/region/r.4.5.mca",
+    );
+    await page
+      .getByLabel("I trust these files and confirm their installation.")
+      .check();
+    await page
+      .getByRole("dialog")
+      .getByRole("button", { name: "Upload", exact: true })
+      .click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    const exported = await page.request.get(
+      `/api/v1/servers/${server.id}/worlds/export?path=world`,
+    );
+    expect(exported.status()).toBe(200);
+    await page
+      .getByRole("tab", { name: "Recovery chests", exact: true })
+      .click();
+    await expect(page.locator(".backup-card")).toHaveCount(2);
+  } finally {
+    await rm(temporary, { recursive: true, force: true });
+  }
+});
+
+test("management pages and wizard controls remain reachable on small screens and short windows", async ({
+  page,
+}) => {
+  await login(page);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const server = await makeServer(
+    page,
+    "A_long_world_name_with_no_breaks_to_exercise_responsive_controls",
+  );
+  for (const viewport of [
+    { width: 320, height: 568 },
+    { width: 768, height: 600 },
+    { width: 1024, height: 600 },
+    { width: 1920, height: 1080 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto(`/servers/${server.id}`);
+    await page.getByLabel("Advanced mode", { exact: true }).check();
+    for (const tab of [
+      "Overview",
+      "Console",
+      "Settings",
+      "Players",
+      "Worlds",
+      "Inventory",
+      "Recovery chests",
+      "Enchant & update",
+      "Play together",
+      "Files",
+      "World permissions",
+    ]) {
+      await page.getByRole("tab", { name: tab, exact: true }).click();
+      await page.locator(".tab-scene .mine-panel").first().waitFor();
+      await fit(page, ".main-content, .tab-scene .mine-panel");
+    }
+    await page.goto("/");
+    await page
+      .getByRole("button", { name: "Create a world", exact: true })
+      .first()
+      .click();
+    for (let step = 0; step < 7; step++) {
+      await fit(page, ".modal-body");
+      const footer = await page.locator(".modal-footer").boundingBox();
+      expect(footer!.y).toBeGreaterThanOrEqual(0);
+      expect(footer!.y + footer!.height).toBeLessThanOrEqual(viewport.height);
+      if (step === 1)
+        await page.getByRole("button", { name: /Make it your own/ }).click();
+      if (step === 2)
+        await page.getByLabel("Advanced mode", { exact: true }).check();
+      if (step === 5) await page.getByLabel("I have read and accept").check();
+      if (step < 6)
+        await page
+          .getByRole("button", { name: "Continue", exact: true })
+          .click();
+    }
+    if (viewport.width === 320)
+      await page.screenshot({
+        path: "docs/screenshots/responsive-wizard.png",
+        animations: "disabled",
+      });
+    await page
+      .getByRole("dialog")
+      .getByRole("button", { name: "Close", exact: true })
+      .click();
+  }
+});

@@ -221,7 +221,7 @@ export function Dashboard() {
             ))}
         </MinePanel>
       )}
-      <Wizard open={wizard} onOpenChange={setWizard} />
+      {wizard && <Wizard open={wizard} onOpenChange={setWizard} />}
     </div>
   );
 }

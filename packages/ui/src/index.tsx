@@ -93,12 +93,14 @@ export function MineModal({
   title,
   description,
   children,
+  footer,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
   description?: string;
   children: ReactNode;
+  footer?: ReactNode;
 }) {
   useEffect(() => {
     if (open) void sound.play("chest");
@@ -126,7 +128,8 @@ export function MineModal({
           ) : (
             <Dialog.Description className="sr-only">{title}</Dialog.Description>
           )}
-          {children}
+          <div className="modal-body">{children}</div>
+          {footer && <div className="modal-footer">{footer}</div>}
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

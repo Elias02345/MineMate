@@ -17,7 +17,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
   const config = {
     dataRoot,
     hostRoot: env.MINEMATE_HOST_DATA_PATH ?? dataRoot,
-    port: int("MINEMATE_PORT", 8080),
+    port: int("MINEMATE_PORT", 18080),
     bind: env.MINEMATE_BIND_ADDRESS ?? "0.0.0.0",
     lanIp: env.MINEMATE_LAN_IP ?? detected,
     dockerEndpoint:
@@ -33,7 +33,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     secureCookies: env.MINEMATE_SECURE_COOKIES === "true",
     trustProxy: env.MINEMATE_TRUST_PROXY === "true",
     webRoot: path.resolve("apps/web/dist"),
-    version: "0.2.0",
+    version: "0.3.0",
     curseforgeKey: env.CURSEFORGE_API_KEY ?? "",
     gatewayBind: env.MINEMATE_GAME_BIND_ADDRESS ?? "0.0.0.0",
     disableGateway: env.MINEMATE_DISABLE_GATEWAY === "true",

@@ -25,7 +25,7 @@ class CloudTestEngine extends Engine {
         "NO_PROXY=localhost,127.0.0.1",
         "CURL_CA_BUNDLE=/trusted-ca/ca.pem",
         "SSL_CERT_FILE=/trusted-ca/ca.pem",
-        "JAVA_TOOL_OPTIONS=-Djavax.net.ssl.trustStore=/trusted-ca/cacerts -Djavax.net.ssl.trustStorePassword=changeit",
+        `JAVA_TOOL_OPTIONS=-Dhttp.proxyHost=${proxy.hostname} -Dhttp.proxyPort=${proxy.port} -Dhttps.proxyHost=${proxy.hostname} -Dhttps.proxyPort=${proxy.port} -Dhttp.nonProxyHosts=localhost|127.* -Djavax.net.ssl.trustStore=/trusted-ca/cacerts -Djavax.net.ssl.trustStorePassword=changeit`,
       ];
     }
     return super.create(name, spec);

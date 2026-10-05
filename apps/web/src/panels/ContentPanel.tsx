@@ -1,6 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, mutate } from "../api.ts";
+import { UploadPicker } from "../UploadPicker.tsx";
+import {
+  uploadSelection,
+  waitForOperation,
+  selectionError,
+} from "../uploads.ts";
 import { useI18n } from "../i18n.tsx";
 import { ErrorNotice, useAction } from "../hooks.tsx";
 import {
@@ -41,7 +47,8 @@ export default function ContentPanel({ server: s }: { server: Server }) {
     [search, setSearch] = useState(""),
     [project, setProject] = useState<Project | null>(null),
     [plan, setPlan] = useState<InstallPlan | null>(null),
-    [upload, setUpload] = useState(false);
+    [upload, setUpload] = useState(false),
+    [uploadKind, setUploadKind] = useState("jar");
   const installed = useQuery({
       queryKey: ["content", s.id],
       queryFn: () => api<InstalledContent[]>(`/servers/${s.id}/content`),
@@ -86,9 +93,28 @@ export default function ContentPanel({ server: s }: { server: Server }) {
                 {s.config.software}
               </p>
             </div>
-            <MineButton variant="secondary" onClick={() => setUpload(true)}>
-              {t("contentUpload")}
-            </MineButton>
+            <div className="button-row server-upload-actions">
+              {s.permissions.includes("settings") && (
+                <MineButton
+                  variant="secondary"
+                  onClick={() => {
+                    setUploadKind("custom");
+                    setUpload(true);
+                  }}
+                >
+                  {t("serverJarUpload")}
+                </MineButton>
+              )}
+              <MineButton
+                variant="secondary"
+                onClick={() => {
+                  setUploadKind("jar");
+                  setUpload(true);
+                }}
+              >
+                {t("bulkJarUpload")}
+              </MineButton>
+            </div>
           </div>
           <form
             className="market-search"
@@ -302,7 +328,12 @@ export default function ContentPanel({ server: s }: { server: Server }) {
         )}
         <ErrorNotice error={details.error ?? resolve.error ?? action.error} />
       </MineModal>
-      <UploadDialog server={s} open={upload} onOpenChange={setUpload} />
+      <UploadDialog
+        server={s}
+        open={upload}
+        onOpenChange={setUpload}
+        defaultKind={uploadKind}
+      />
     </>
   );
 }
@@ -323,75 +354,190 @@ export function UploadDialog({
     client = useQueryClient(),
     [kind, setKind] = useState(defaultKind),
     [files, setFiles] = useState<File[]>([]),
-    [confirmed, setConfirmed] = useState(false);
+    [software, setSoftware] = useState(s.config.software),
+    [confirmed, setConfirmed] = useState(false),
+    [percent, setPercent] = useState(0),
+    opened = useRef(false),
+    [phase, setPhase] = useState("");
   const upload = useMutation({
-    mutationFn: () => {
-      const body = new FormData();
-      for (const file of files) body.append("file", file);
-      return api(
-        `/servers/${s.id}/uploads?kind=${kind}&directory=${encodeURIComponent(directory)}&confirm=true`,
-        { method: "POST", body },
+    mutationFn: async () => {
+      setPercent(0);
+      setPhase(t("uploadTransferring"));
+      const result = await uploadSelection(
+        s.id,
+        kind,
+        files,
+        setPercent,
+        kind === "custom" ? software : undefined,
+        directory,
       );
+      await waitForOperation(result.operation, s.id, setPhase);
+      return result;
+    },
+    onSettled: () => {
+      void client.invalidateQueries();
     },
     onSuccess: () => {
       onOpenChange(false);
-      void client.invalidateQueries();
     },
   });
-  return (
-    <MineModal open={open} onOpenChange={onOpenChange} title={t("upload")}>
-      <label className="field">
-        <span>{t("upload")}</span>
-        <select value={kind} onChange={(e) => setKind(e.target.value)}>
-          {defaultKind === "file" && <option value="file">{t("files")}</option>}
-          {s.config.edition === "JAVA" && (
-            <>
-              <option value="jar">{t("contentUpload")}</option>
-              <option value="custom">{t("customJar")}</option>
-              <option value="modpack">{t("packUpload")}</option>
-            </>
-          )}
-          <option value="world">{t("worldImport")}</option>
-          <option value="server">{t("serverImport")}</option>
-        </select>
-      </label>
-      <label className="drop-zone">
-        <Asset name="chest" size={50} />
-        <b>{t("chooseArchive")}</b>
-        <small>{t("archiveHint")}</small>
-        <input
-          type="file"
-          multiple={kind === "jar" || kind === "file"}
-          accept={
-            kind === "file"
-              ? undefined
-              : kind === "jar" || kind === "custom"
-                ? ".jar"
-                : ".zip,.mrpack"
-          }
-          onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
-        />
-        {files.map((f) => (
-          <span key={f.name}>{f.name}</span>
-        ))}
-      </label>
-      <label className="checkbox">
-        <input
-          type="checkbox"
-          checked={confirmed}
-          onChange={(e) => setConfirmed(e.target.checked)}
-        />
-        {t("uploadConfirm")}
-      </label>
-      {(kind === "jar" || kind === "custom") && (
-        <MineNotice>{t("customWarning")}</MineNotice>
-      )}
+  const reset = upload.reset;
+  useEffect(() => {
+    if (open && !opened.current) {
+      setKind(defaultKind);
+      setFiles([]);
+      setSoftware(s.config.software);
+      setConfirmed(false);
+      setPhase("");
+      setPercent(0);
+      reset();
+    }
+    opened.current = open;
+  }, [open, defaultKind, s.config.software, reset]);
+  const error = selectionError(files, kind === "world-folder"),
+    content = s.config.edition === "JAVA" && s.permissions.includes("content"),
+    world = s.permissions.includes("files"),
+    submit = (
       <MineButton
-        disabled={!files.length || !confirmed || upload.isPending}
+        disabled={!files.length || !confirmed || !!error || upload.isPending}
         onClick={() => upload.mutate()}
       >
         {t(upload.isPending ? "loading" : "upload")}
       </MineButton>
+    );
+  return (
+    <MineModal
+      open={open}
+      onOpenChange={(value) => {
+        if (!upload.isPending) onOpenChange(value);
+      }}
+      title={t(
+        kind === "custom"
+          ? "serverJarUpload"
+          : kind === "jar"
+            ? "bulkJarUpload"
+            : "upload",
+      )}
+      footer={<div className="button-row">{submit}</div>}
+    >
+      {upload.isPending ? (
+        <div className="upload-progress" role="status">
+          <b>{percent}%</b>
+          <progress
+            value={percent}
+            max={100}
+            aria-label={t("uploadTransferring")}
+          />
+          <MineProgress message={phase} />
+        </div>
+      ) : (
+        <>
+          <label className="field">
+            <span>{t("uploadType")}</span>
+            <select
+              value={kind}
+              onChange={(event) => {
+                setKind(event.target.value);
+                setFiles([]);
+                setConfirmed(false);
+                reset();
+              }}
+            >
+              {defaultKind === "file" && (
+                <option value="file">{t("files")}</option>
+              )}
+              {content && (
+                <>
+                  <option value="jar">{t("bulkJarUpload")}</option>
+                  {s.permissions.includes("settings") && (
+                    <option value="custom">{t("serverJarUpload")}</option>
+                  )}
+                  <option value="modpack">{t("packUpload")}</option>
+                </>
+              )}
+              {world && (
+                <>
+                  <option value="world">{t("worldZipUpload")}</option>
+                  <option value="world-folder">{t("worldFolderUpload")}</option>
+                  <option value="server">{t("serverImport")}</option>
+                </>
+              )}
+            </select>
+          </label>
+          {kind === "custom" && (
+            <>
+              <label className="field">
+                <span>{t("software")}</span>
+                <select
+                  value={software}
+                  onChange={(event) =>
+                    setSoftware(event.target.value as typeof software)
+                  }
+                >
+                  {[
+                    "VANILLA",
+                    "PAPER",
+                    "PURPUR",
+                    "FABRIC",
+                    "FORGE",
+                    "NEOFORGE",
+                    "CUSTOM",
+                  ].map((value) => (
+                    <option key={value}>{value}</option>
+                  ))}
+                </select>
+              </label>
+              <MineNotice>
+                {t(
+                  ["FORGE", "NEOFORGE"].includes(software)
+                    ? "installerUploadHint"
+                    : "serverJarUploadHint",
+                )}
+              </MineNotice>
+            </>
+          )}
+          {kind === "jar" && (
+            <MineNotice>
+              {t(
+                ["PAPER", "PURPUR"].includes(s.config.software)
+                  ? "pluginUploadHint"
+                  : "modUploadHint",
+              )}
+            </MineNotice>
+          )}
+          {(kind === "world" || kind === "world-folder") && (
+            <MineNotice>{t("worldUploadHint")}</MineNotice>
+          )}
+          <UploadPicker
+            files={files}
+            onChange={setFiles}
+            folder={kind === "world-folder"}
+            multiple={kind === "jar" || kind === "file"}
+            accept={
+              kind === "file" || kind === "world-folder"
+                ? undefined
+                : kind === "jar" || kind === "custom"
+                  ? ".jar"
+                  : ".zip,.mrpack,.mcworld"
+            }
+            label={t(
+              kind === "world-folder" ? "chooseFolder" : "chooseArchive",
+            )}
+          />
+          {error && <MineNotice>{t(error)}</MineNotice>}
+          <label className="checkbox">
+            <input
+              type="checkbox"
+              checked={confirmed}
+              onChange={(event) => setConfirmed(event.target.checked)}
+            />
+            {t("uploadConfirm")}
+          </label>
+          {(kind === "jar" || kind === "custom") && (
+            <MineNotice>{t("customWarning")}</MineNotice>
+          )}
+        </>
+      )}
       <ErrorNotice error={upload.error} />
     </MineModal>
   );

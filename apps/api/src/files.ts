@@ -240,83 +240,124 @@ export class Files {
       }
     });
     servers.jobs.register("import", async (op, phase) => {
-      const s = servers.get(op.serverId!),
+      const s = this.servers.get(op.serverId!),
+        folderUpload = typeof op.payload.folder === "string",
         upload = await safePath(
           servers.paths.server(s.id, "uploads"),
-          String(op.payload.filename),
+          String(folderUpload ? op.payload.folder : op.payload.filename),
         ),
-        kind = String(op.payload.kind);
+        kind = String(op.payload.kind),
+        stage =
+          servers.paths.server(s.id, "imports") + "/import-" + randomUUID(),
+        running = s.desired === "RUNNING";
+      let backupId: string | null = null,
+        changed = false;
       try {
-        phase("Inspecting and staging the uploaded archive");
-        const stage =
-          servers.paths.server(s.id, "imports") + "/import-" + randomUUID();
-        await extractArchive(upload, stage);
-        phase("Saving the current world");
+        phase("Inspecting and staging the uploaded world");
+        if (folderUpload) await rename(upload, stage);
+        else await extractArchive(upload, stage);
+        const entries = await walk(stage);
+        let source = stage;
+        if (kind === "server") {
+          const roots = entries.filter(
+            (f) => path.posix.basename(f.path) === "server.properties",
+          );
+          const root =
+            roots.find((f) => f.path === "server.properties") ??
+            (roots.length === 1 ? roots[0] : undefined);
+          if (!root)
+            throw new AppError(
+              "SERVER_FORMAT",
+              "Choose a server folder ZIP containing server.properties. Use world import for a saved world.",
+            );
+          source = await safePath(
+            stage,
+            path.posix.dirname(root.path) === "."
+              ? ""
+              : path.posix.dirname(root.path),
+          );
+        } else {
+          const roots = entries.filter(
+            (f) => path.posix.basename(f.path) === "level.dat",
+          );
+          if (roots.length !== 1)
+            throw new AppError(
+              "WORLD_FORMAT",
+              roots.length
+                ? "This upload contains multiple worlds. Choose one complete world folder."
+                : "Choose a complete Minecraft world folder or ZIP containing level.dat.",
+            );
+          const prefix = path.posix.dirname(roots[0]!.path);
+          source = await safePath(stage, prefix === "." ? "" : prefix);
+          const worldEntries = await walk(source),
+            bedrock = worldEntries.some((f) => f.path.startsWith("db/"));
+          if ((s.config.edition === "BEDROCK") !== bedrock)
+            throw new AppError(
+              "WORLD_EDITION",
+              bedrock
+                ? "This is a Bedrock world. Import it into a Bedrock server."
+                : "This is a Java world. Import it into a Java server; Bedrock worlds need their db folder.",
+            );
+        }
+        phase("Saving a recovery point before replacing the world");
         await servers.stop(s);
+        changed = true;
         const backup = await backups.create(
           s,
           servers.actor(op.id),
           "before " + kind + " import",
         );
+        backupId = backup.id;
         phase("Applying the validated import");
-        if (kind === "server") {
-          const previous = await swapDirectory(
-            stage,
+        let target = servers.paths.server(s.id);
+        if (kind !== "server") {
+          const p = await this.properties(s),
+            world = p.values["level-name"] ?? "world";
+          target = await safePath(
             servers.paths.server(s.id),
+            s.config.edition === "JAVA" ? world : "worlds/" + world,
+            true,
           );
+        }
+        await mkdir(path.dirname(target), { recursive: true, mode: 0o700 });
+        let exists = true;
+        try {
+          await stat(target);
+        } catch (e) {
+          if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+          exists = false;
+        }
+        if (exists) {
+          const previous = await swapDirectory(source, target);
           await rename(
             previous,
             servers.paths.server(s.id, "snapshots") + "/" + randomUUID(),
           );
-        } else {
-          let folder = stage;
-          const files = await readdir(stage);
-          if (files.length === 1) {
-            const first = files[0]!;
-            const entry = await safePath(stage, first);
-            if ((await stat(entry)).isDirectory()) folder = entry;
-          }
-          const entries = await walk(folder);
-          if (
-            !entries.some(
-              (f) => f.path === "level.dat" || f.path.startsWith("db/"),
-            )
-          )
-            throw new AppError(
-              "WORLD_FORMAT",
-              "The archive does not contain a Minecraft world.",
-            );
-          const p = await this.properties(s),
-            world = p.values["level-name"] ?? "world",
-            target = await safePath(
-              servers.paths.server(s.id),
-              s.config.edition === "JAVA" ? world : "worlds/" + world,
-              true,
-            );
-          await mkdir(path.dirname(target), { recursive: true, mode: 0o700 });
-          try {
-            await stat(target);
-            const previous = await swapDirectory(folder, target);
-            await rename(
-              previous,
-              servers.paths.server(s.id, "snapshots") + "/" + randomUUID(),
-            );
-          } catch (e) {
-            if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
-            await rename(folder, target);
-          }
-          await rm(stage, { recursive: true, force: true });
-        }
-        servers.state(s, "STOPPED");
+        } else await rename(source, target);
+        if (running) {
+          phase("Checking Minecraft with the imported world");
+          await servers.start(s);
+          await servers.waitReady(s);
+        } else servers.state(s, "STOPPED");
         servers.store.audit(servers.actor(op.id), s.id, "world.imported", {
           kind,
+          format: folderUpload ? "folder" : "zip",
         });
-        return { backupId: backup.id };
+        return { backupId, files: entries.length };
       } catch (e) {
-        servers.fail(s, e);
+        if (changed) {
+          phase("Restoring the previous world after the unsuccessful import");
+          await servers.stop(s);
+          if (backupId) await backups.restore(s, backupId);
+          if (running) {
+            await servers.start(s);
+            await servers.waitReady(s);
+          } else servers.state(s, "STOPPED");
+        }
         throw e;
       } finally {
-        await rm(upload, { force: true });
+        await rm(stage, { recursive: true, force: true });
+        await rm(upload, { recursive: folderUpload, force: true });
       }
     });
     servers.jobs.register("files.upload", async (op, phase) => {

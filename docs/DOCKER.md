@@ -31,7 +31,7 @@ Internet. See [security](SECURITY.md).
 ## Install the published image
 
 Download `docker-compose.yml` and `default.env.example` from the
-[v0.2.0 release](https://github.com/Elias02345/MineMate/releases/tag/v0.2.0).
+[v0.3.0 release](https://github.com/Elias02345/MineMate/releases/tag/v0.3.0).
 Rename `default.env.example` to `.env` and set `MINEMATE_LAN_IP` to the Docker host's
 LAN address. These are the only files needed for deployment:
 
@@ -39,7 +39,7 @@ LAN address. These are the only files needed for deployment:
 docker compose up -d --wait
 ```
 
-Production Compose uses `ghcr.io/elias02345/minemate:0.2.0` and contains no build
+Production Compose uses `ghcr.io/elias02345/minemate:0.3.0` and contains no build
 context. Pulls are public and need no registry login. The release workflow verifies
 an anonymous pull before publishing its downloadable configuration files.
 
@@ -132,3 +132,10 @@ CurseForge API access and S3 credentials are optional. Some CurseForge authors
 forbid API downloads; MineMate explains the restriction and permits a confirmed
 manual upload. Native Bedrock supports amd64; MineMate does not substitute an
 unofficial ARM binary.
+
+## Web UI host port
+
+The default published port is 18080: open `http://HOST-IP:18080`. The container's
+internal port is 8080. Set `MINEMATE_PORT` in `.env` to choose another host port.
+When upgrading from 0.2.0, change any existing `MINEMATE_PORT=8080` entry explicitly
+to `MINEMATE_PORT=18080`; existing environment values take precedence over defaults.

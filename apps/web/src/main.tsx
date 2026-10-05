@@ -19,6 +19,7 @@ import { ErrorBoundary } from "./ErrorBoundary.tsx";
 import { Experience } from "./Experience.tsx";
 import "./styles.css";
 import "./adventure.css";
+import "./responsive.css";
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: { staleTime: 5000, retry: 1, refetchOnWindowFocus: false },

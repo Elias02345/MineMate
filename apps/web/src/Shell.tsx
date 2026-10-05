@@ -141,7 +141,7 @@ export function Shell() {
               <LogOut size={16} />
               {t("logout")}
             </MineButton>
-            <small>MineMate 0.2.0</small>
+            <small>MineMate 0.3.0</small>
           </div>
         </aside>
         <main className="main-content">

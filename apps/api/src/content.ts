@@ -27,6 +27,8 @@ import {
 } from "../../../packages/backup/src/archive.ts";
 import {
   AppError,
+  serverConfigSchema,
+  serverJarFilename,
   now,
   type Server,
   type ServerConfig,
@@ -34,6 +36,7 @@ import {
 } from "../../../packages/shared/src/index.ts";
 import type { Servers } from "./servers.ts";
 import type { Backups } from "./backups.ts";
+import { validateJar } from "./jars.ts";
 export class Content {
   constructor(
     private servers: Servers,
@@ -297,7 +300,8 @@ export class Content {
   ) {
     if (s.config.edition !== "JAVA")
       throw new AppError("CAPABILITY", "Bedrock cannot run Java archives.");
-    const validated: { file: string; relative: string }[] = [];
+    const validated: { file: string; relative: string; server: boolean }[] = [];
+    let targetConfig = s.config;
     try {
       for (const input of files) {
         const file = await safePath(
@@ -306,29 +310,17 @@ export class Content {
           ),
           name = String(input.name),
           custom = !!input.custom;
-        relativeSafe(name);
-        if (!/^[a-zA-Z0-9 _().+-]+\.jar$/i.test(name))
-          throw new AppError("JAR", "Choose a JAR file.");
-        if (custom && (files.length !== 1 || s.config.software !== "CUSTOM"))
-          throw new AppError(
-            "CUSTOM_JAR",
-            "Upload one server JAR to a Custom Java world.",
-          );
-        if (
-          !custom &&
-          !["PAPER", "PURPUR", "FABRIC", "FORGE", "NEOFORGE"].includes(
-            s.config.software,
-          )
-        )
-          throw new AppError(
-            "LOADER",
-            "Choose a mod or plugin loader before uploading content.",
-          );
-        const entries = await inspectArchive(file);
-        if (!entries.some((e) => e.name === "META-INF/MANIFEST.MF"))
-          throw new AppError("JAR", "This is not a recognizable JAR.");
+        if (custom && files.length !== 1)
+          throw new AppError("CUSTOM_JAR", "Upload one server JAR at a time.");
+        if (custom)
+          targetConfig = serverConfigSchema.parse({
+            ...s.config,
+            software: input.software ?? s.config.software,
+            serverSource: "upload",
+          });
+        await validateJar(file, name, targetConfig, custom);
         const relative = custom
-          ? "custom-server.jar"
+          ? serverJarFilename(targetConfig)
           : (["PAPER", "PURPUR"].includes(s.config.software)
               ? "plugins/"
               : "mods/") + name;
@@ -337,7 +329,7 @@ export class Content {
             "JAR_COLLISION",
             "Two uploads use the same filename.",
           );
-        validated.push({ file, relative });
+        validated.push({ file, relative, server: custom });
       }
       phase("Saving a recovery point");
       const running = s.desired === "RUNNING";
@@ -349,7 +341,7 @@ export class Content {
       );
       try {
         phase("Applying the complete upload");
-        for (const { file, relative } of validated) {
+        for (const { file, relative, server } of validated) {
           const target = await safePath(
             this.servers.paths.server(s.id),
             relative,
@@ -357,21 +349,29 @@ export class Content {
           );
           await mkdir(path.dirname(target), { recursive: true, mode: 0o700 });
           await copyFile(file, target);
-          this.record({
-            id: randomUUID(),
-            serverId: s.id,
-            source: "manual",
-            projectId: "",
-            versionId: "",
-            filename: relative,
-            hash: await hashFile(file),
-            gameVersion: s.config.version,
-            loader: s.config.software.toLowerCase(),
-            dependency: false,
-            managed: false,
-            installedAt: now(),
-            installedBy: actor,
-          });
+          if (!server)
+            this.record({
+              id: randomUUID(),
+              serverId: s.id,
+              source: "manual",
+              projectId: "",
+              versionId: "",
+              filename: relative,
+              hash: await hashFile(file),
+              gameVersion: s.config.version,
+              loader: s.config.software.toLowerCase(),
+              dependency: false,
+              managed: false,
+              installedAt: now(),
+              installedBy: actor,
+            });
+        }
+        if (validated.some((f) => f.server)) {
+          this.servers.store.run(
+            "DELETE FROM installed_content WHERE server_id=? AND filename IN ('custom-server.jar','server-installer.jar')",
+            s.id,
+          );
+          await this.servers.replaceContainer(s, targetConfig);
         }
         await this.manifest(s);
         if (running) {

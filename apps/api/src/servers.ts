@@ -5,6 +5,8 @@ import type { Store } from "../../../packages/database/src/index.ts";
 import {
   AppError,
   serverConfigSchema,
+  usesUploadedServerJar,
+  serverJarFilename,
   now,
   can,
   permissions,
@@ -56,7 +58,7 @@ export class Servers {
       const s = this.get(op.serverId!);
       try {
         phase("Preparing persistent world storage");
-        if (s.config.software !== "CUSTOM")
+        if (!usesUploadedServerJar(s.config))
           await this.ensureContainer(s, phase);
         await this.ensureGateway(s, phase);
         this.state(s, "STOPPED");
@@ -288,10 +290,10 @@ export class Servers {
       );
     await this.host.prove();
     await this.docker.ensureNetwork(this.config.network);
-    if (s.config.software === "CUSTOM") {
+    if (usesUploadedServerJar(s.config)) {
       try {
         await stat(
-          await safePath(this.paths.server(s.id), "custom-server.jar"),
+          await safePath(this.paths.server(s.id), serverJarFilename(s.config)),
         );
       } catch {
         throw new AppError(
@@ -365,7 +367,7 @@ export class Servers {
       }
     }
     const image =
-      process.env.MINEMATE_RUNTIME_IMAGE ?? "ghcr.io/elias02345/minemate:0.2.0";
+      process.env.MINEMATE_RUNTIME_IMAGE ?? "ghcr.io/elias02345/minemate:0.3.0";
     if (!/^[a-zA-Z0-9./_-]+:[a-zA-Z0-9._-]+$/.test(image))
       throw new AppError(
         "GATEWAY_IMAGE",

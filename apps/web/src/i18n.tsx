@@ -1,5 +1,67 @@
 import { createContext, useContext, useState, type ReactNode } from "react";
 const messages = {
+  serverSource: ["Server installation", "Server-Installation"],
+  createdWorldRetained: [
+    "The world has already been created. Retry the file upload here or open it to continue; no duplicate world will be created.",
+    "Die Welt wurde bereits erstellt. Den Datei-Upload hier wiederholen oder die Welt öffnen; es wird keine doppelte Welt erstellt.",
+  ],
+  openCreatedWorld: ["Open the created world", "Erstellte Welt öffnen"],
+  automaticDownload: ["Download automatically", "Automatisch herunterladen"],
+  uploadServerJar: ["Upload my own JAR", "Eigene JAR hochladen"],
+  serverJarUpload: ["Upload server JAR", "Server-JAR hochladen"],
+  bulkJarUpload: ["Upload mod / plugin JARs", "Mod- / Plugin-JARs hochladen"],
+  uploadType: ["Upload type", "Upload-Art"],
+  worldZipUpload: ["World ZIP", "Welt als ZIP"],
+  worldFolderUpload: ["World folder", "Welt als Ordner"],
+  chooseFolder: ["Choose a world folder", "Weltordner auswählen"],
+  selectedFiles: ["files selected", "Dateien ausgewählt"],
+  removeSelectedFile: ["Remove selected file", "Ausgewählte Datei entfernen"],
+  clearSelection: ["Clear selection", "Auswahl leeren"],
+  fileUploadHint: [
+    "Choose a file or drop it here.",
+    "Datei auswählen oder hier ablegen.",
+  ],
+  bulkJarHint: [
+    "Choose several files together, add more, or drop them here. Up to 100 files per upload.",
+    "Mehrere Dateien gemeinsam auswählen, weitere hinzufügen oder hier ablegen. Bis zu 100 Dateien pro Upload.",
+  ],
+  folderUploadHint: [
+    "Select the complete world folder. Its subfolders and file paths are preserved.",
+    "Den vollständigen Weltordner auswählen. Unterordner und Dateipfade bleiben erhalten.",
+  ],
+  installerUploadHint: [
+    "Use the official Forge / NeoForge installer JAR for this Minecraft version. MineMate installs it and starts the server; it belongs here, not in mods.",
+    "Die offizielle Forge- / NeoForge-Installer-JAR für diese Minecraft-Version verwenden. MineMate installiert sie und startet den Server; sie gehört hierhin, nicht in mods.",
+  ],
+  serverJarUploadHint: [
+    "Upload a directly executable server JAR. Choose its matching software; use Custom for other launchers. Mods are uploaded separately.",
+    "Eine direkt ausführbare Server-JAR hochladen. Die passende Server-Software wählen; für andere Launcher Custom verwenden. Mods werden separat hochgeladen.",
+  ],
+  modUploadHint: [
+    "All selected JARs go into mods together. Use server-side mods matching this Minecraft version and loader. A Custom server must support these mods.",
+    "Alle ausgewählten JARs werden gemeinsam in mods installiert. Server-Mods passend zu Minecraft-Version und Loader verwenden. Ein Custom-Server muss diese Mods unterstützen.",
+  ],
+  pluginUploadHint: [
+    "All selected JARs go into plugins together. Use plugins compatible with your server.",
+    "Alle ausgewählten JARs werden gemeinsam in plugins installiert. Mit dem Server kompatible Plugins verwenden.",
+  ],
+  worldUploadHint: [
+    "Upload a complete saved world, including level.dat and its region files (Java) or db folder (Bedrock). ZIP wrapper folders are detected. A recovery point protects the current world.",
+    "Eine vollständige gespeicherte Welt mit level.dat und Region-Dateien (Java) oder db-Ordner (Bedrock) hochladen. Übergeordnete ZIP-Ordner werden erkannt. Ein Wiederherstellungspunkt schützt die aktuelle Welt.",
+  ],
+  uploadTransferring: ["Transferring files", "Dateien übertragen"],
+  uploadCountError: [
+    "Select at most 100 files, or 10,000 files for a world folder.",
+    "Höchstens 100 Dateien bzw. 10.000 Dateien für einen Weltordner auswählen.",
+  ],
+  uploadSizeError: [
+    "The limit is 512 MB per file and 20 GB in total. Use a ZIP for a larger world folder.",
+    "Das Limit beträgt 512 MB pro Datei und 20 GB insgesamt. Größere Weltordner als ZIP hochladen.",
+  ],
+  uploadDuplicateError: [
+    "Two selected files have the same name. Remove the duplicate before uploading.",
+    "Zwei ausgewählte Dateien haben denselben Namen. Das Duplikat vor dem Upload entfernen.",
+  ],
   taskComplete: ["Crafting complete!", "Fertig gebaut!"],
   backToAdventure: ["Back to your adventure.", "Weiter ins Abenteuer."],
   attention: ["A little redstone hiccup", "Ein kleiner Redstone-Hänger"],

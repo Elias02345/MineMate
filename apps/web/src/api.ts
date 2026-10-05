@@ -40,3 +40,49 @@ export async function api<T>(
 }
 export const mutate = <T>(path: string, body?: unknown, method = "POST") =>
   api<T>(path, { method, body: JSON.stringify(body ?? {}) });
+export function upload<T>(
+  path: string,
+  body: FormData,
+  progress: (percent: number) => void,
+): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    request.open("POST", "/api/v1" + path);
+    request.setRequestHeader("x-csrf-token", csrf);
+    request.upload.onprogress = (event) => {
+      if (event.lengthComputable)
+        progress(Math.round((event.loaded / event.total) * 100));
+    };
+    request.onerror = () =>
+      reject(
+        new ApiError(
+          "UPLOAD_NETWORK",
+          "Upload interrupted. Check the connection and try again.",
+        ),
+      );
+    request.onload = () => {
+      let result: T & { code?: string; message?: string; detail?: string };
+      try {
+        result = JSON.parse(request.responseText) as typeof result;
+      } catch {
+        reject(
+          new ApiError(
+            "UPLOAD_RESPONSE",
+            "The upload could not be completed. Check the file size and any reverse proxy upload limits.",
+          ),
+        );
+        return;
+      }
+      if (request.status < 200 || request.status >= 300)
+        reject(
+          new ApiError(
+            result.code ?? "UPLOAD",
+            result.message ?? "Upload failed",
+            result.detail,
+          ),
+        );
+      else resolve(result);
+    };
+    request.send(body);
+  });
+}

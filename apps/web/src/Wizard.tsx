@@ -1,10 +1,16 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { ArrowRight, ArrowLeft, Check } from "lucide-react";
 import { useI18n, type TranslationKey } from "./i18n.tsx";
 import { api, mutate } from "./api.ts";
 import { ErrorNotice } from "./hooks.tsx";
+import { UploadPicker } from "./UploadPicker.tsx";
+import {
+  uploadSelection,
+  waitForOperation,
+  selectionError,
+} from "./uploads.ts";
 import {
   MineButton,
   MineModal,
@@ -55,7 +61,14 @@ export function Wizard({
     [java, setJava] = useState<ServerConfig["java"]>("auto"),
     [seed, setSeed] = useState(""),
     [worldKind, setWorldKind] = useState("new"),
-    [file, setFile] = useState<File | null>(null),
+    [files, setFiles] = useState<File[]>([]),
+    [folderWorld, setFolderWorld] = useState(false),
+    [serverSource, setServerSource] =
+      useState<ServerConfig["serverSource"]>("download"),
+    [serverJar, setServerJar] = useState<File | null>(null),
+    [percent, setPercent] = useState(0),
+    created = useRef<{ server: Server; operation: Operation } | null>(null),
+    completedUploads = useRef(new Set<string>()),
     [eula, setEula] = useState(false),
     [phase, setPhase] = useState("");
   const versions = useQuery({
@@ -78,6 +91,7 @@ export function Wizard({
     edition,
     software: edition === "BEDROCK" ? "BEDROCK" : software,
     version: edition === "BEDROCK" ? version || "LATEST" : version,
+    serverSource: edition === "BEDROCK" ? "download" : serverSource,
     loaderVersion: loader,
     memoryMb: memory,
     cpu,
@@ -92,47 +106,57 @@ export function Wizard({
   const create = useMutation({
     mutationFn: async () => {
       setPhase(t("createProgress"));
-      const result = await mutate<{ server: Server; operation: Operation }>(
-        "/servers",
-        config,
-      );
+      const result =
+        created.current ??
+        (await mutate<{ server: Server; operation: Operation }>(
+          "/servers",
+          config,
+        ));
+      created.current = result;
       await client.invalidateQueries();
-      if (file) {
-        let done = false;
-        for (let i = 0; i < 300; i++) {
-          const operations = await api<Operation[]>(
-              `/operations?serverId=${result.server.id}`,
-            ),
-            op = operations.find((o) => o.id === result.operation.id);
-          setPhase(op?.phase ?? t("createProgress"));
-          if (op?.status === "FAILED")
-            throw new Error(op.error ?? "Creation failed");
-          if (op?.status === "SUCCEEDED") {
-            done = true;
-            break;
-          }
-          await new Promise((r) => setTimeout(r, 1000));
-        }
-        if (!done)
-          throw new Error(
-            "Creation is still in progress. Open the world to follow it.",
+      if (serverJar || files.length) {
+        await waitForOperation(result.operation, result.server.id, setPhase);
+        if (serverJar && !completedUploads.current.has("server")) {
+          setPhase(t("uploadTransferring"));
+          setPercent(0);
+          const uploaded = await uploadSelection(
+            result.server.id,
+            "custom",
+            [serverJar],
+            setPercent,
+            software,
           );
-        const form = new FormData();
-        form.append("file", file);
-        const kind =
-          style === "custom"
-            ? "custom"
-            : style === "modpack"
+          await waitForOperation(
+            uploaded.operation,
+            result.server.id,
+            setPhase,
+          );
+          completedUploads.current.add("server");
+        }
+        if (files.length && !completedUploads.current.has("world")) {
+          const kind =
+            style === "modpack" || worldKind === "pack"
               ? "modpack"
               : worldKind === "server"
                 ? "server"
-                : worldKind === "pack"
-                  ? "modpack"
+                : folderWorld
+                  ? "world-folder"
                   : "world";
-        await api(
-          `/servers/${result.server.id}/uploads?kind=${kind}&confirm=true`,
-          { method: "POST", body: form },
-        );
+          setPhase(t("uploadTransferring"));
+          setPercent(0);
+          const uploaded = await uploadSelection(
+            result.server.id,
+            kind,
+            files,
+            setPercent,
+          );
+          await waitForOperation(
+            uploaded.operation,
+            result.server.id,
+            setPhase,
+          );
+          completedUploads.current.add("world");
+        }
       }
       return result;
     },
@@ -156,17 +180,30 @@ export function Wizard({
             ? "CUSTOM"
             : "VANILLA",
     );
-    if (value === "modpack") setWorldKind("pack");
+    setWorldKind(value === "modpack" ? "pack" : "new");
+    setServerSource(value === "custom" ? "upload" : "download");
+    setServerJar(null);
+    setFiles([]);
+    setFolderWorld(false);
   }
   const ready =
     step === 2
-      ? edition === "BEDROCK" || !!version
+      ? edition === "BEDROCK" ||
+        (!!version && (serverSource !== "upload" || !!serverJar))
       : step === 4
-        ? (worldKind === "new" && style !== "custom") || !!file
+        ? worldKind === "new" ||
+          (files.length > 0 && !selectionError(files, folderWorld))
         : step === 5
           ? eula
           : step === 6
-            ? eula && !!(name || t("worldDefault"))
+            ? eula &&
+              !!(name || t("worldDefault")) &&
+              (serverSource !== "upload" ||
+                !!serverJar ||
+                completedUploads.current.has("server")) &&
+              (worldKind === "new" ||
+                completedUploads.current.has("world") ||
+                (files.length > 0 && !selectionError(files, folderWorld)))
             : true;
   return (
     <MineModal
@@ -175,6 +212,36 @@ export function Wizard({
         if (!create.isPending) onOpenChange(value);
       }}
       title={t("wizardTitle")}
+      footer={
+        !create.isPending ? (
+          <div className="wizard-controls">
+            <MineButton
+              variant="secondary"
+              disabled={!!created.current}
+              onClick={() =>
+                step === 0 ? onOpenChange(false) : setStep(step - 1)
+              }
+            >
+              <ArrowLeft size={17} />
+              {t(step === 0 ? "cancel" : "back")}
+            </MineButton>
+            {step < 6 ? (
+              <MineButton disabled={!ready} onClick={() => setStep(step + 1)}>
+                {t("next")}
+                <ArrowRight size={17} />
+              </MineButton>
+            ) : (
+              <MineButton
+                disabled={!ready || create.isPending}
+                onClick={() => create.mutate()}
+              >
+                <Asset name="grassBlock" size={20} />
+                {t("createNow")}
+              </MineButton>
+            )}
+          </div>
+        ) : undefined
+      }
     >
       <div className="wizard-progress" aria-label={t("create")}>
         {stepKeys.map((key, i) => (
@@ -185,7 +252,19 @@ export function Wizard({
         ))}
       </div>
       {create.isPending ? (
-        <MineProgress message={phase || t("createProgress")} />
+        <div className="upload-progress" role="status">
+          {percent > 0 && (
+            <>
+              <b>{percent}%</b>
+              <progress
+                value={percent}
+                max={100}
+                aria-label={t("uploadTransferring")}
+              />
+            </>
+          )}
+          <MineProgress message={phase || t("createProgress")} />
+        </div>
       ) : (
         <>
           <h2 className="wizard-step-heading">{t(stepKeys[step]!)}</h2>
@@ -198,6 +277,7 @@ export function Wizard({
                 hint={t("javaHint")}
                 onClick={() => {
                   setEdition("JAVA");
+                  pickStyle("vanilla");
                   setVersion(versions.data?.recommended ?? "");
                 }}
               />
@@ -208,6 +288,7 @@ export function Wizard({
                 hint={t("bedrockHint")}
                 onClick={() => {
                   setEdition("BEDROCK");
+                  pickStyle("vanilla");
                   setVersion("LATEST");
                 }}
               />
@@ -293,23 +374,19 @@ export function Wizard({
                 required
               />
               <ErrorNotice error={versions.error} />
-              <label className="checkbox">
-                <input
-                  type="checkbox"
-                  checked={advanced}
-                  onChange={(e) => setAdvanced(e.target.checked)}
-                />
-                {t("advanced")}
-              </label>
-              {advanced && edition === "JAVA" && (
-                <div className="form-grid">
+              {edition === "JAVA" && (
+                <>
                   <label className="field">
                     <span>{t("software")}</span>
                     <select
                       value={software}
-                      onChange={(e) =>
-                        setSoftware(e.target.value as ServerConfig["software"])
-                      }
+                      onChange={(e) => {
+                        const value = e.target
+                          .value as ServerConfig["software"];
+                        setSoftware(value);
+                        if (value === "CUSTOM") setServerSource("upload");
+                        setServerJar(null);
+                      }}
                     >
                       {[
                         "VANILLA",
@@ -324,6 +401,56 @@ export function Wizard({
                       ))}
                     </select>
                   </label>
+
+                  <label className="field">
+                    <span>{t("serverSource")}</span>
+                    <select
+                      value={serverSource}
+                      onChange={(event) => {
+                        setServerSource(
+                          event.target.value as typeof serverSource,
+                        );
+                        setServerJar(null);
+                      }}
+                    >
+                      {software !== "CUSTOM" && (
+                        <option value="download">
+                          {t("automaticDownload")}
+                        </option>
+                      )}
+                      <option value="upload">{t("uploadServerJar")}</option>
+                    </select>
+                  </label>
+                  {serverSource === "upload" && (
+                    <>
+                      <MineNotice>
+                        {t(
+                          ["FORGE", "NEOFORGE"].includes(software)
+                            ? "installerUploadHint"
+                            : "serverJarUploadHint",
+                        )}
+                      </MineNotice>
+                      <UploadPicker
+                        files={serverJar ? [serverJar] : []}
+                        onChange={(values) => setServerJar(values[0] ?? null)}
+                        accept=".jar"
+                        label={t("serverJarUpload")}
+                      />
+                    </>
+                  )}
+                </>
+              )}
+
+              <label className="checkbox">
+                <input
+                  type="checkbox"
+                  checked={advanced}
+                  onChange={(e) => setAdvanced(e.target.checked)}
+                />
+                {t("advanced")}
+              </label>
+              {advanced && edition === "JAVA" && (
+                <div className="form-grid">
                   <MineInput
                     label={t("loader")}
                     value={loader}
@@ -423,7 +550,11 @@ export function Wizard({
                 <span>{t("wizardWorld")}</span>
                 <select
                   value={worldKind}
-                  onChange={(e) => setWorldKind(e.target.value)}
+                  onChange={(e) => {
+                    setWorldKind(e.target.value);
+                    setFiles([]);
+                    setFolderWorld(false);
+                  }}
                 >
                   <option value="new">{t("newWorld")}</option>
                   <option value="world">{t("worldImport")}</option>
@@ -436,20 +567,37 @@ export function Wizard({
                 value={seed}
                 onChange={(e) => setSeed(e.target.value)}
               />
-              {(worldKind !== "new" || style === "custom") && (
-                <label className="drop-zone">
-                  <Asset name="chest" size={44} />
-                  <b>{t("chooseArchive")}</b>
-                  <span>{file?.name ?? t("archiveHint")}</span>
-                  <input
-                    type="file"
-                    accept={style === "custom" ? ".jar" : ".zip,.mrpack"}
-                    onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              {worldKind !== "new" && (
+                <>
+                  {worldKind === "world" && (
+                    <label className="checkbox">
+                      <input
+                        type="checkbox"
+                        checked={folderWorld}
+                        onChange={(event) => {
+                          setFolderWorld(event.target.checked);
+                          setFiles([]);
+                        }}
+                      />
+                      {t("worldFolderUpload")}
+                    </label>
+                  )}
+                  <UploadPicker
+                    files={files}
+                    onChange={setFiles}
+                    folder={folderWorld}
+                    accept=".zip,.mrpack,.mcworld"
+                    label={t(folderWorld ? "chooseFolder" : "chooseArchive")}
                   />
-                </label>
-              )}
-              {style === "custom" && (
-                <MineNotice>{t("customWarning")}</MineNotice>
+                  {selectionError(files, folderWorld) && (
+                    <MineNotice>
+                      {t(selectionError(files, folderWorld)!)}
+                    </MineNotice>
+                  )}
+                  {worldKind === "world" && (
+                    <MineNotice>{t("worldUploadHint")}</MineNotice>
+                  )}
+                </>
               )}
             </>
           )}
@@ -491,7 +639,16 @@ export function Wizard({
                   [t("memory"), `${memory} MB`],
                   [t("cpu"), String(cpu)],
                   [t("maxPlayers"), String(maxPlayers)],
-                  [t("worlds"), file?.name ?? t("newWorld")],
+                  [
+                    t("worlds"),
+                    files.length
+                      ? files[0]!.webkitRelativePath.split("/")[0] ||
+                        files[0]!.name
+                      : t("newWorld"),
+                  ],
+                  ...(serverJar
+                    ? [[t("serverJarUpload"), serverJar.name]]
+                    : []),
                 ].map(([k, v]) => (
                   <div key={k}>
                     <small>{k}</small>
@@ -511,32 +668,41 @@ export function Wizard({
             </>
           )}
           <ErrorNotice error={create.error} />
-          {!create.isPending && (
-            <div className="wizard-controls">
+          {create.error && created.current && (
+            <>
+              <MineNotice>{t("createdWorldRetained")}</MineNotice>
+              {serverSource === "upload" &&
+                !completedUploads.current.has("server") && (
+                  <UploadPicker
+                    files={serverJar ? [serverJar] : []}
+                    onChange={(values) => setServerJar(values[0] ?? null)}
+                    accept=".jar"
+                    label={t("serverJarUpload")}
+                  />
+                )}
+              {worldKind !== "new" &&
+                !completedUploads.current.has("world") && (
+                  <UploadPicker
+                    files={files}
+                    onChange={setFiles}
+                    folder={folderWorld}
+                    accept=".zip,.mrpack,.mcworld"
+                    label={t(folderWorld ? "chooseFolder" : "chooseArchive")}
+                  />
+                )}
               <MineButton
                 variant="secondary"
-                onClick={() =>
-                  step === 0 ? onOpenChange(false) : setStep(step - 1)
-                }
+                onClick={() => {
+                  onOpenChange(false);
+                  void navigate({
+                    to: "/servers/$serverId",
+                    params: { serverId: created.current!.server.id },
+                  });
+                }}
               >
-                <ArrowLeft size={17} />
-                {t(step === 0 ? "cancel" : "back")}
+                {t("openCreatedWorld")}
               </MineButton>
-              {step < 6 ? (
-                <MineButton disabled={!ready} onClick={() => setStep(step + 1)}>
-                  {t("next")}
-                  <ArrowRight size={17} />
-                </MineButton>
-              ) : (
-                <MineButton
-                  disabled={!ready || create.isPending}
-                  onClick={() => create.mutate()}
-                >
-                  <Asset name="grassBlock" size={20} />
-                  {t("createNow")}
-                </MineButton>
-              )}
-            </div>
+            </>
           )}
         </>
       )}
