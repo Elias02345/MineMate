@@ -18,7 +18,7 @@ Download just the two configuration files from the release:
 mkdir minemate
 cd minemate
 curl -fL -o docker-compose.yml https://github.com/Elias02345/MineMate/releases/download/v0.1.0/docker-compose.yml
-curl -fL -o .env https://github.com/Elias02345/MineMate/releases/download/v0.1.0/.env.example
+curl -fL -o .env https://github.com/Elias02345/MineMate/releases/download/v0.1.0/default.env.example
 ```
 
 Set **MINEMATE_LAN_IP** in `.env` to your Docker host's LAN address, then start:

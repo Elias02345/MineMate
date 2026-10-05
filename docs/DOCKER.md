@@ -30,9 +30,9 @@ Internet. See [security](SECURITY.md).
 
 ## Install the published image
 
-Download `docker-compose.yml` and `.env.example` from the
+Download `docker-compose.yml` and `default.env.example` from the
 [v0.1.0 release](https://github.com/Elias02345/MineMate/releases/tag/v0.1.0).
-Rename `.env.example` to `.env` and set `MINEMATE_LAN_IP` to the Docker host's
+Rename `default.env.example` to `.env` and set `MINEMATE_LAN_IP` to the Docker host's
 LAN address. These are the only files needed for deployment:
 
 ```sh
@@ -115,7 +115,7 @@ production Compose, persistence and browser flows. Native amd64 and arm64 runner
 build images and publish their digests. The publish job creates the version and
 `latest` manifests, checks an anonymous pull and uploads the Compose release assets.
 
-GHCR packages initially default to private. On the first release, set the
+If GHCR creates a private package, set the
 [MineMate package](https://github.com/users/Elias02345/packages/container/minemate/settings)
 to **Public**, then rerun the publish job if its anonymous-pull check failed. Later
 releases keep the package visibility. Never distribute registry credentials in

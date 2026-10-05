@@ -120,12 +120,20 @@ jobs:
       - name: Publish downloadable Compose release
         run: |
           cat > "$RUNNER_TEMP/release-notes.md" <<'NOTES'
-          Install the prebuilt MineMate image with Docker Compose. Download docker-compose.yml and .env.example, rename the latter to .env and set your Docker host LAN address, then run docker compose up -d --wait. No Git checkout, Node installation or local image build is needed.
+          Install the prebuilt MineMate image with Docker Compose. Download docker-compose.yml and default.env.example, rename the latter to .env and set your Docker host LAN address, then run docker compose up -d --wait. No Git checkout, Node installation or local image build is needed.
 
           The image supports linux/amd64 and linux/arm64. Native Bedrock servers require amd64. See README.md and docs/VALIDATION.md for runtime coverage and limitations.
           NOTES
+          cp .env.example "$RUNNER_TEMP/default.env.example"
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" docker-compose.yml .env.example --clobber
+            gh release upload "$GITHUB_REF_NAME" docker-compose.yml "$RUNNER_TEMP/default.env.example" --clobber
           else
-            gh release create "$GITHUB_REF_NAME" docker-compose.yml .env.example --verify-tag --title "MineMate ${GITHUB_REF_NAME#v}" --notes-file "$RUNNER_TEMP/release-notes.md"
+            gh release create "$GITHUB_REF_NAME" docker-compose.yml "$RUNNER_TEMP/default.env.example" --verify-tag --title "MineMate ${GITHUB_REF_NAME#v}" --notes-file "$RUNNER_TEMP/release-notes.md"
           fi
+      - name: Verify public configuration downloads
+        run: |
+          release="https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME"
+          curl --fail --location --retry 3 --output "$RUNNER_TEMP/released-compose.yml" "$release/docker-compose.yml"
+          curl --fail --location --retry 3 --output "$RUNNER_TEMP/released.env" "$release/default.env.example"
+          cmp docker-compose.yml "$RUNNER_TEMP/released-compose.yml"
+          cmp .env.example "$RUNNER_TEMP/released.env"

@@ -4,6 +4,14 @@ Validated in the Codex cloud environment on 2026-10-05. The published cloud
 environment restores the implementation, dependency cache, build artifacts and
 Docker images. The release pipeline publishes versioned multi-architecture images and checks public pulls before creating the downloadable Compose release.
 
+The [v0.1.0 release](https://github.com/Elias02345/MineMate/releases/tag/v0.1.0)
+publishes `ghcr.io/elias02345/minemate:0.1.0` and `latest` with native amd64 and
+arm64 builds. The [release workflow](https://github.com/Elias02345/MineMate/actions/runs/37333092514)
+passed, including an anonymous image pull. An independent anonymous pull,
+byte-for-byte public release download checks and the full production Compose
+smoke against that published amd64 image also pass. GitHub names the environment
+asset `default.env.example`; download it as `.env`.
+
 ## Automated checks
 
 - Strict TypeScript, ESLint and production frontend/backend builds pass.
