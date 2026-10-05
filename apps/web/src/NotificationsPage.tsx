@@ -1,3 +1,4 @@
+import { useScene } from "./Experience.tsx";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "./api.ts";
 import { useI18n } from "./i18n.tsx";
@@ -9,6 +10,7 @@ import {
   MineNotice,
 } from "../../../packages/ui/src/index.tsx";
 export function NotificationsPage() {
+  useScene("notifications");
   const { t } = useI18n(),
     action = useAction(),
     q = useQuery({

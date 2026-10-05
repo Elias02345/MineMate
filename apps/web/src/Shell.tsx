@@ -1,80 +1,58 @@
 import { Link, Outlet } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
-import {
-  Trees,
-  Users,
-  Settings,
-  Bell,
-  LogOut,
-  Menu,
-  X,
-  Volume2,
-  VolumeX,
-} from "lucide-react";
+import { LogOut, Menu, X, Volume2, VolumeX } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { MotionConfig } from "motion/react";
 import { useI18n } from "./i18n.tsx";
 import { useUser } from "./Auth.tsx";
 import { mutate } from "./api.ts";
 import { useRealtime } from "./hooks.tsx";
 import { Asset, MineButton } from "../../../packages/ui/src/index.tsx";
 import { sound } from "../../../packages/ui/src/sound.ts";
-export interface Preferences {
-  enabled: boolean;
-  uiVolume: number;
-  ambientVolume: number;
-  reduced: boolean;
-}
-export function readPreferences(): Preferences {
-  try {
-    return {
-      ...{ enabled: false, uiVolume: 0.3, ambientVolume: 0.1, reduced: false },
-      ...(JSON.parse(
-        localStorage.getItem("minemate.preferences") ?? "{}",
-      ) as Partial<Preferences>),
-    };
-  } catch {
-    return {
-      enabled: false,
-      uiVolume: 0.3,
-      ambientVolume: 0.1,
-      reduced: false,
-    };
-  }
-}
-export function savePreferences(p: Preferences) {
-  localStorage.setItem("minemate.preferences", JSON.stringify(p));
-  sound.configure(p);
-  document.documentElement.classList.toggle("reduced-effects", p.reduced);
-  window.dispatchEvent(new Event("minemate-preferences"));
-}
+import { savePreferences } from "../../../packages/ui/src/preferences.ts";
+import { useExperience } from "./Experience.tsx";
+import type { AssetName } from "../../../packages/ui/src/assets.tsx";
 export function Shell() {
   const { t, language, setLanguage } = useI18n(),
     user = useUser(),
     client = useQueryClient(),
     connected = useRealtime(),
     [menu, setMenu] = useState(false),
-    [preferences, setPreferences] = useState(readPreferences);
+    { preferences } = useExperience();
   useEffect(() => {
-    savePreferences(preferences);
-    const update = () => setPreferences(readPreferences());
-    window.addEventListener("minemate-preferences", update);
-    return () => window.removeEventListener("minemate-preferences", update);
+    const close = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMenu(false);
+    };
+    window.addEventListener("keydown", close);
+    return () => window.removeEventListener("keydown", close);
   }, []);
   const links = [
-    { to: "/" as const, label: "dashboard" as const, Icon: Trees },
+    {
+      to: "/" as const,
+      label: "dashboard" as const,
+      icon: "grassBlock" as AssetName,
+    },
     {
       to: "/notifications" as const,
       label: "notifications" as const,
-      Icon: Bell,
+      icon: "redstone" as AssetName,
     },
     ...(user.role !== "member"
-      ? [{ to: "/users" as const, label: "users" as const, Icon: Users }]
+      ? [
+          {
+            to: "/users" as const,
+            label: "users" as const,
+            icon: "creeper" as AssetName,
+          },
+        ]
       : []),
-    { to: "/settings" as const, label: "settings" as const, Icon: Settings },
+    {
+      to: "/settings" as const,
+      label: "settings" as const,
+      icon: "pickaxe" as AssetName,
+    },
   ];
   return (
-    <MotionConfig reducedMotion="user">
+    <>
       <div className="app-shell">
         <header className="topbar">
           <Link to="/" className="brand">
@@ -91,11 +69,12 @@ export function Shell() {
               className="icon-button"
               onClick={() => {
                 const next = { ...preferences, enabled: !preferences.enabled };
-                setPreferences(next);
                 savePreferences(next);
                 void sound.play("interface");
               }}
               aria-label={t("sounds")}
+              aria-pressed={preferences.enabled}
+              title={t(preferences.enabled ? "soundOn" : "soundOff")}
             >
               {preferences.enabled ? (
                 <Volume2 size={20} />
@@ -119,8 +98,12 @@ export function Shell() {
           </div>
         </header>
         <aside className={"sidebar " + (menu ? "open" : "")}>
+          <div className="sidebar-label">
+            <Asset name="book" size={22} />
+            {t("adventureJournal")}
+          </div>
           <nav>
-            {links.map(({ to, label, Icon }) => (
+            {links.map(({ to, label, icon }, index) => (
               <Link
                 to={to}
                 key={to}
@@ -128,13 +111,24 @@ export function Shell() {
                 activeProps={{ className: "active" }}
                 onClick={() => setMenu(false)}
               >
-                <Icon size={20} />
-                {t(label)}
+                <span className="nav-item-slot">
+                  <Asset name={icon} size={28} />
+                </span>
+                <span>{t(label)}</span>
+                <small className="nav-number" aria-hidden="true">
+                  0{index + 1}
+                </small>
               </Link>
             ))}
           </nav>
           <div className="sidebar-bottom">
-            <Asset name="bee" size={32} />
+            <div className="sidebar-camp" aria-hidden="true">
+              <Asset name="grassBlock" size={64} />
+              <Asset name="bee" size={30} />
+              <i />
+              <i />
+              <i />
+            </div>
             <span>{t("tagline")}</span>
             <MineButton
               variant="ghost"
@@ -147,7 +141,7 @@ export function Shell() {
               <LogOut size={16} />
               {t("logout")}
             </MineButton>
-            <small>MineMate 0.1.0</small>
+            <small>MineMate 0.2.0</small>
           </div>
         </aside>
         <main className="main-content">
@@ -155,6 +149,6 @@ export function Shell() {
         </main>
         <footer className="mobile-footer">{t("tagline")}</footer>
       </div>
-    </MotionConfig>
+    </>
   );
 }

@@ -1,3 +1,4 @@
+import { useScene } from "./Experience.tsx";
 import { useState, lazy, Suspense } from "react";
 import { Link, useParams } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -44,6 +45,7 @@ export function ServerPage() {
     queryKey: ["server", serverId],
     queryFn: () => api<Server>("/servers/" + serverId),
   });
+  useScene(tab);
   if (query.isPending) return <MineProgress message={t("loading")} />;
   if (!query.data) return <ErrorNotice error={query.error} />;
   const s = query.data,
@@ -187,19 +189,28 @@ export function ServerPage() {
           {t("advanced")}
         </label>
       </div>
-      <Suspense fallback={<MineProgress message={t("loading")} />}>
-        {tab === "overview" && <Overview server={s} />}{" "}
-        {tab === "console" && <ConsolePanel server={s} />}{" "}
-        {tab === "settings" && <SettingsPanel server={s} advanced={advanced} />}{" "}
-        {tab === "players" && <PlayerPanel server={s} />}{" "}
-        {tab === "worlds" && <WorldPanel server={s} />}{" "}
-        {tab === "content" && <ContentPanel server={s} />}{" "}
-        {tab === "backups" && <BackupPanel server={s} />}{" "}
-        {tab === "updates" && <UpdatePanel server={s} advanced={advanced} />}{" "}
-        {tab === "network" && <NetworkPanel server={s} />}{" "}
-        {tab === "files" && <FilePanel server={s} />}{" "}
-        {tab === "permissions" && <AccessPanel server={s} />}
-      </Suspense>
+      <div
+        className="tab-scene"
+        key={tab}
+        role="tabpanel"
+        aria-label={t(tabs.find((item) => item.id === tab)!.key)}
+      >
+        <Suspense fallback={<MineProgress message={t("loading")} />}>
+          {tab === "overview" && <Overview server={s} />}{" "}
+          {tab === "console" && <ConsolePanel server={s} />}{" "}
+          {tab === "settings" && (
+            <SettingsPanel server={s} advanced={advanced} />
+          )}{" "}
+          {tab === "players" && <PlayerPanel server={s} />}{" "}
+          {tab === "worlds" && <WorldPanel server={s} />}{" "}
+          {tab === "content" && <ContentPanel server={s} />}{" "}
+          {tab === "backups" && <BackupPanel server={s} />}{" "}
+          {tab === "updates" && <UpdatePanel server={s} advanced={advanced} />}{" "}
+          {tab === "network" && <NetworkPanel server={s} />}{" "}
+          {tab === "files" && <FilePanel server={s} />}{" "}
+          {tab === "permissions" && <AccessPanel server={s} />}
+        </Suspense>
+      </div>
     </div>
   );
 }

@@ -12,6 +12,17 @@ byte-for-byte public release download checks and the full production Compose
 smoke against that published amd64 image also pass. GitHub names the environment
 asset `default.env.example`; download it as `.env`.
 
+## Adventure UI checks (0.2.0)
+
+The visual upgrade passes strict type checking, lint, 51 unit/API checks and five
+browser tests. The added browser coverage checks actual wandering, pointer and
+keyboard interaction, scene-dependent companion responses, persisted visibility,
+Web Audio opt-in, immediate mute, zero-volume silence and persisted reduced-effects
+settings. Every server tab fits the 390-pixel mobile viewport. With either OS or
+application reduced motion, decorative animations stop and companions stay usable.
+The detailed results below retain the initial real-Minecraft backend coverage;
+the UI upgrade does not require starting new Minecraft servers.
+
 ## Automated checks
 
 - Strict TypeScript, ESLint and production frontend/backend builds pass.
@@ -21,10 +32,11 @@ asset `default.env.example`; download it as `.env`.
   restoring world bytes, inventory, resources and the original LAN port.
 - The default suite skips its opt-in Docker test. `npm run test:docker` passes
   separately with an actual, uniquely owned, temporary Engine container.
-- Both browser tests pass: desktop onboarding, wizard, lifecycle, console,
+- Five browser tests pass: desktop onboarding, wizard, lifecycle, console,
   settings, backup/restore, CloudGate endpoint and user creation; German mobile
   layout, reduced motion and muted sound. Their explicitly named Docker/protocol
-  fixture is a test fixture rather than Minecraft.
+  fixture is a test fixture rather than Minecraft. Companion and audio coverage
+  is described above and in [the adventure UI guide](ADVENTURE_UI.md).
 - The final production Docker image builds and runs with the default entrypoint.
 - The production Compose definition passes with an already-built image and a
   fresh disposable data directory: non-root/read-only runtime, automatic data

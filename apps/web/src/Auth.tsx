@@ -17,11 +17,16 @@ import {
   Asset,
 } from "../../../packages/ui/src/index.tsx";
 import { ErrorNotice } from "./hooks.tsx";
+import { useExperience, useScene } from "./Experience.tsx";
+import { savePreferences } from "../../../packages/ui/src/preferences.ts";
+import { sound } from "../../../packages/ui/src/sound.ts";
+import { Volume2, VolumeX } from "lucide-react";
 import type { User } from "../../../packages/shared/src/index.ts";
 const authContext = createContext<User>(null!);
 export const useUser = () => useContext(authContext);
 export function AuthGate({ children }: { children: ReactNode }) {
   const { t, language, setLanguage } = useI18n(),
+    { preferences } = useExperience(),
     client = useQueryClient();
   const status = useQuery({
     queryKey: ["auth"],
@@ -36,6 +41,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     },
     retry: false,
   });
+  useScene(status.data?.user ? null : "welcome");
   if (status.isPending)
     return (
       <div className="full-screen">
@@ -63,6 +69,17 @@ export function AuthGate({ children }: { children: ReactNode }) {
     <div className="auth-world">
       <Landscape />
       <div className="auth-language">
+        <button
+          aria-label={t("sounds")}
+          aria-pressed={preferences.enabled}
+          onClick={() => {
+            savePreferences({ ...preferences, enabled: !preferences.enabled });
+            void sound.play("craft");
+          }}
+        >
+          {preferences.enabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
+          {t(preferences.enabled ? "soundOn" : "soundOff")}
+        </button>
         <button onClick={() => setLanguage(language === "en" ? "de" : "en")}>
           {language === "en" ? "Deutsch" : "English"}
         </button>
@@ -75,6 +92,10 @@ export function AuthGate({ children }: { children: ReactNode }) {
           </span>
         </div>
         <MinePanel>
+          <span className="eyebrow auth-eyebrow">
+            <Asset name="diamond" size={19} />
+            {t("readyToCraft")}
+          </span>
           <h1>{t(status.data.setupRequired ? "welcome" : "login")}</h1>
           <p>{t(status.data.setupRequired ? "welcomeBody" : "loginBody")}</p>
           <AuthForm

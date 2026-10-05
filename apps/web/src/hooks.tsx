@@ -5,6 +5,7 @@ import { useI18n } from "./i18n.tsx";
 import { MineNotice } from "../../../packages/ui/src/index.tsx";
 import type { Event, Server } from "../../../packages/shared/src/index.ts";
 import { sound } from "../../../packages/ui/src/sound.ts";
+import { feedback } from "../../../packages/ui/src/preferences.ts";
 export function ErrorNotice({ error }: { error: unknown }) {
   const { t } = useI18n();
   if (!error) return null;
@@ -35,10 +36,10 @@ export function useAction() {
     }) => mutate(path, body, method),
     onSuccess: () => {
       void client.invalidateQueries();
-      void sound.play("success");
+      void sound.play("craft");
     },
     onError: () => {
-      void sound.play("warning");
+      feedback("warning");
     },
   });
 }
@@ -86,6 +87,7 @@ export function useRealtime() {
           if (
             ["SUCCEEDED", "FAILED", "INTERRUPTED"].includes(operation.status)
           ) {
+            feedback(operation.status === "SUCCEEDED" ? "success" : "warning");
             for (const key of [
               "server",
               "backups",

@@ -3,7 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "./api.ts";
 import { useI18n } from "./i18n.tsx";
 import { useUser } from "./Auth.tsx";
-import { readPreferences, savePreferences } from "./Shell.tsx";
+import { savePreferences } from "../../../packages/ui/src/preferences.ts";
+import { sound } from "../../../packages/ui/src/sound.ts";
+import { useExperience, useScene } from "./Experience.tsx";
 import { ErrorNotice, useAction } from "./hooks.tsx";
 import {
   MinePanel,
@@ -17,7 +19,7 @@ export function SettingsPage() {
   const { t, language, setLanguage } = useI18n(),
     user = useUser(),
     action = useAction(),
-    [preferences, setPreferences] = useState(readPreferences),
+    { preferences } = useExperience(),
     [key, setKey] = useState(""),
     [s3, setS3] = useState({
       endpoint: "",
@@ -27,6 +29,7 @@ export function SettingsPage() {
       secretKey: "",
       prefix: "minemate",
     });
+  useScene("preferences");
   const system = useQuery({
       queryKey: ["system"],
       queryFn: () =>
@@ -77,7 +80,6 @@ export function SettingsPage() {
           checked={preferences.enabled}
           onChange={(v) => {
             const p = { ...preferences, enabled: v };
-            setPreferences(p);
             savePreferences(p);
           }}
         />
@@ -92,7 +94,6 @@ export function SettingsPage() {
               value={preferences[k]}
               onChange={(e) => {
                 const p = { ...preferences, [k]: Number(e.target.value) };
-                setPreferences(p);
                 savePreferences(p);
               }}
             />
@@ -104,10 +105,46 @@ export function SettingsPage() {
           checked={preferences.reduced}
           onChange={(v) => {
             const p = { ...preferences, reduced: v };
-            setPreferences(p);
             savePreferences(p);
           }}
         />
+        <MineToggle
+          label={t("companions")}
+          hint={t("companionsHint")}
+          checked={preferences.companions}
+          onChange={(companions) =>
+            savePreferences({ ...preferences, companions })
+          }
+        />
+        <div className="sound-playground">
+          <div>
+            <Asset name="jukebox" size={52} />
+            <span>
+              <b>{t("previewSound")}</b>
+              <small>{t("soundHint")}</small>
+            </span>
+          </div>
+          <div className="button-row">
+            {(
+              [
+                ["chest", "soundChest", "chest"],
+                ["portal", "soundPortal", "portal"],
+                ["success", "soundSuccess", "diamond"],
+              ] as const
+            ).map(([kind, label, icon]) => (
+              <MineButton
+                key={kind}
+                variant="secondary"
+                data-silent
+                disabled={!preferences.enabled}
+                onClick={() => void sound.play(kind)}
+              >
+                <Asset name={icon} size={22} />
+                {t(label)}
+              </MineButton>
+            ))}
+          </div>
+        </div>
       </MinePanel>
       {user.role !== "member" && (
         <>

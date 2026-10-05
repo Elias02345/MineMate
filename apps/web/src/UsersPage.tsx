@@ -1,3 +1,4 @@
+import { useScene } from "./Experience.tsx";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "./api.ts";
@@ -14,6 +15,7 @@ import {
 } from "../../../packages/ui/src/index.tsx";
 import type { User } from "../../../packages/shared/src/index.ts";
 export function UsersPage() {
+  useScene("users");
   const { t } = useI18n(),
     action = useAction(),
     [open, setOpen] = useState(false),

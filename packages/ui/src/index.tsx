@@ -3,6 +3,7 @@ import type {
   ButtonHTMLAttributes,
   InputHTMLAttributes,
 } from "react";
+import { useEffect } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { Asset, type AssetName } from "./assets.tsx";
@@ -21,9 +22,9 @@ export function MineButton({
     <button
       type="button"
       className={`mine-button ${variant} ${className}`}
+      data-sound={variant === "danger" ? "stone" : "wood"}
       {...props}
       onClick={(e) => {
-        void sound.play("interface");
         onClick?.(e);
       }}
     >
@@ -99,6 +100,9 @@ export function MineModal({
   description?: string;
   children: ReactNode;
 }) {
+  useEffect(() => {
+    if (open) void sound.play("chest");
+  }, [open]);
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
@@ -141,7 +145,13 @@ export function MineEmpty({
 }) {
   return (
     <div className="empty-state">
-      <Asset name={icon} size={70} />
+      <div className="empty-diorama" aria-hidden="true">
+        <Asset name="diamond" size={24} className="empty-orbit orbit-one" />
+        <Asset name={icon} size={88} className="empty-main" />
+        <Asset name="bee" size={32} className="empty-orbit orbit-two" />
+        <Asset name="pickaxe" size={26} className="empty-orbit orbit-three" />
+        <i className="diorama-island" />
+      </div>
       <h2>{title}</h2>
       <p>{description}</p>
       {children}
@@ -152,9 +162,16 @@ export function MineProgress({ message }: { message: string }) {
   return (
     <div className="crafting-progress" role="status">
       <div className="crafting-cube">
-        <Asset name="grassBlock" size={32} />
+        <Asset name="pickaxe" size={36} />
       </div>
       <span>{message}</span>
+      <div className="crafting-meter" aria-hidden="true">
+        <i />
+        <i />
+        <i />
+        <i />
+        <i />
+      </div>
     </div>
   );
 }
@@ -184,17 +201,58 @@ export function MineTabs({
   active: string;
   onChange: (id: string) => void;
 }) {
+  const icons: Record<string, AssetName> = {
+    overview: "grassBlock",
+    console: "redstone",
+    settings: "pickaxe",
+    players: "creeper",
+    worlds: "dirtBlock",
+    content: "diamond",
+    backups: "chest",
+    updates: "book",
+    network: "portal",
+    files: "book",
+    permissions: "enderPearl",
+  };
   return (
     <div className="mine-tabs" role="tablist">
-      {items.map((item) => (
+      {items.map((item, index) => (
         <button
           key={item.id}
           role="tab"
           aria-selected={active === item.id}
+          tabIndex={active === item.id ? 0 : -1}
           className={active === item.id ? "active" : ""}
           onClick={() => onChange(item.id)}
+          onKeyDown={(event) => {
+            if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key))
+              return;
+            event.preventDefault();
+            const next =
+              event.key === "Home"
+                ? 0
+                : event.key === "End"
+                  ? items.length - 1
+                  : (index +
+                      (event.key === "ArrowRight" ? 1 : -1) +
+                      items.length) %
+                    items.length;
+            onChange(items[next]!.id);
+            event.currentTarget.parentElement
+              ?.querySelectorAll<HTMLButtonElement>("button")
+              [next]?.focus();
+            void sound.play("wood");
+          }}
+          data-sound={
+            item.id === "network"
+              ? "portal"
+              : item.id === "backups"
+                ? "chest"
+                : "wood"
+          }
         >
-          {item.label}
+          <Asset name={icons[item.id] ?? "grassBlock"} size={24} />
+          <span>{item.label}</span>
         </button>
       ))}
     </div>

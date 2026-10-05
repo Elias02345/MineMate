@@ -1,5 +1,73 @@
 import { createContext, useContext, useState, type ReactNode } from "react";
 const messages = {
+  taskComplete: ["Crafting complete!", "Fertig gebaut!"],
+  backToAdventure: ["Back to your adventure.", "Weiter ins Abenteuer."],
+  attention: ["A little redstone hiccup", "Ein kleiner Redstone-Hänger"],
+  adventureJournal: ["Adventure journal", "Abenteuerbuch"],
+  homeCamp: ["Your base camp", "Dein Basislager"],
+  overworld: ["THE OVERWORLD", "DIE OBERWELT"],
+  readyToCraft: ["Ready. Set. Craft.", "Bereit. Fertig. Bauen."],
+  soundOn: ["Sound on", "Sound an"],
+  soundOff: ["Sound off", "Sound aus"],
+  previewSound: ["Try the sounds", "Klänge ausprobieren"],
+  soundChest: ["Open a chest", "Truhe öffnen"],
+  soundPortal: ["Enter a portal", "Portal betreten"],
+  soundSuccess: ["Celebrate", "Jubeln"],
+  companions: ["Little companions", "Kleine Begleiter"],
+  companionsHint: [
+    "Roaming pixel friends that react to your views and completed actions.",
+    "Wandernde Pixelfreunde, die auf Ansichten und abgeschlossene Aktionen reagieren.",
+  ],
+  companionControls: ["Companion controls", "Begleiter steuern"],
+  companionKeyboard: [
+    "Click to play. Drag to move, or focus a friend and use the arrow keys.",
+    "Klicken zum Spielen. Zum Bewegen ziehen oder eine Figur fokussieren und die Pfeiltasten nutzen.",
+  ],
+  petCompanion: ["Play with", "Spiele mit"],
+  creeperFriend: ["Creeper", "Creeper"],
+  alexFriend: ["Alex", "Alex"],
+  pigFriend: ["Pig", "Schwein"],
+  beeFriend: ["Bee", "Biene"],
+  pauseFriends: ["Take a little rest", "Kleine Pause machen"],
+  resumeFriends: ["Keep exploring", "Weiter erkunden"],
+  playFriends: ["Happy little dance", "Kleiner Freudentanz"],
+  hideFriends: ["Hide companions", "Begleiter ausblenden"],
+  companionOverworld: [
+    "So many blocks. So many possibilities!",
+    "So viele Blöcke. So viele Möglichkeiten!",
+  ],
+  companionWorkshop: [
+    "Hand me that pickaxe. Let's tinker!",
+    "Gib mir die Spitzhacke. Wir tüfteln!",
+  ],
+  companionBackups: [
+    "Your treasures belong in a chest!",
+    "Deine Schätze gehören in eine Truhe!",
+  ],
+  companionPortal: [
+    "Wonder what's on the other side…",
+    "Was wohl auf der anderen Seite ist …",
+  ],
+  companionConsole: [
+    "Beep boop. Redstone is listening.",
+    "Piep. Redstone hört mit.",
+  ],
+  companionInventory: [
+    "Ooh! Something shiny for the inventory!",
+    "Oh! Etwas Glänzendes fürs Inventar!",
+  ],
+  companionBook: [
+    "Every great world starts with a page.",
+    "Jede große Welt beginnt mit einer Seite.",
+  ],
+  companionFriends: [
+    "Adventures are better with friends.",
+    "Abenteuer sind mit Freunden schöner.",
+  ],
+  companionWelcome: [
+    "A new friend! Make yourself at home.",
+    "Ein neuer Freund! Fühl dich wie zu Hause.",
+  ],
   contentKind: ["Content type", "Inhaltstyp"],
   mod: ["Mods", "Mods"],
   plugin: ["Plugins", "Plugins"],
@@ -469,7 +537,7 @@ const messages = {
     "Sound is optional and starts only after your interaction.",
     "Klang ist optional und beginnt erst nach deiner Interaktion.",
   ],
-  integrations: ["Companions & storage", "Anbindungen und Speicher"],
+  integrations: ["Integrations & storage", "Anbindungen und Speicher"],
   curseforgeKey: ["CurseForge API key", "CurseForge-API-Schlüssel"],
   secretHint: [
     "Stored encrypted. Saved keys are never shown again.",

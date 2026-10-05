@@ -1,3 +1,4 @@
+import { useScene } from "./Experience.tsx";
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -56,6 +57,7 @@ export function CopyButton({ value }: { value: string }) {
   );
 }
 export function Dashboard() {
+  useScene("overworld");
   const { t } = useI18n(),
     user = useUser(),
     [wizard, setWizard] = useState(false),
@@ -73,6 +75,15 @@ export function Dashboard() {
   const visible = worlds.data?.filter((s) => !s.archived) ?? [];
   return (
     <div className="page dashboard-page">
+      <div className="world-breadcrumb">
+        <span>
+          <Asset name="compass" size={20} />
+          {t("homeCamp")}
+        </span>
+        <small>
+          {t("overworld")} <i />
+        </small>
+      </div>
       <section className="world-hero">
         <Landscape />
         <div className="hero-content">
@@ -89,6 +100,11 @@ export function Dashboard() {
         <div className="hero-sign">
           <Asset name="grassBlock" size={25} />
           <b>{visible.length}</b> {t("worldCount")}
+        </div>
+        <div className="hero-loot" aria-hidden="true">
+          <Asset name="diamond" size={48} />
+          <Asset name="pickaxe" size={68} />
+          <Asset name="grassBlock" size={95} />
         </div>
       </section>
       <div className="dashboard-stats">

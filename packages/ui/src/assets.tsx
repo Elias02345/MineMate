@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import { useEffect, useRef, type CSSProperties } from "react";
 export type AssetName =
   | "grassBlock"
   | "dirtBlock"
@@ -13,8 +13,26 @@ export type AssetName =
   | "sun"
   | "moon"
   | "book"
-  | "pickaxe";
+  | "pickaxe"
+  | "compass"
+  | "jukebox"
+  | "heart"
+  | "torch"
+  | "mushroom"
+  | "sword";
 const art: Record<AssetName, string> = {
+  compass:
+    '<path fill="#273f42" d="M8 2h16v4h5v22H3V6h5z"/><path fill="#c7d4c3" d="M8 5h16v4h3v14h-4v4H9v-4H5V9h3z"/><path fill="#7b9290" d="M9 8h14v15H9z"/><path fill="#e66c52" d="m18 8 2 9-8 5 2-9z"/><path fill="#f8eaca" d="m14 13 6 4-8 5z"/>',
+  jukebox:
+    '<path fill="#573b2c" d="M2 5h28v25H2z"/><path fill="#c29252" d="M4 7h24v7H4z"/><path fill="#352f2c" d="M9 9h14v3H9zM6 17h20v10H6z"/><path fill="#936343" d="M8 19h3v6H8zm6 0h3v6h-3zm6 0h3v6h-3z"/><path fill="#e6c477" d="M4 7h24v2H4z"/>',
+  heart:
+    '<path fill="#652f37" d="M3 7h11v4h4V7h11v15h-5v5h-5v4h-6v-4H8v-5H3z"/><path fill="#e56868" d="M5 9h7v4h8V9h7v11h-5v5h-6v4h-1v-4h-5v-5H5z"/><path fill="#ffb2a0" d="M7 10h5v4H7z"/>',
+  torch:
+    '<path fill="#65492e" d="M13 12h7v20h-7z"/><path fill="#b08448" d="M13 12h3v20h-3z"/><path fill="#e58635" d="M10 5h13v10H10z"/><path fill="#f6c852" d="M12 2h9v10h-9z"/><path fill="#fff3ad" d="M14 3h5v6h-5z"/>',
+  mushroom:
+    '<path fill="#7f352e" d="M8 3h16v4h5v10H3V7h5z"/><path fill="#e0764e" d="M8 3h16v4h3v8H5V7h3z"/><path fill="#fff0ce" d="M8 5h5v4H8zm12 3h5v5h-5zM12 16h8v12h-8z"/><path fill="#c5a87b" d="M17 17h3v11h-3z"/>',
+  sword:
+    '<path fill="#1b615d" d="M23 1h8v8L13 27l-8-8z"/><path fill="#8de2cf" d="M24 3h5v5L13 24l-5-5z"/><path fill="#e3fff0" d="M24 3h3L10 20l-2-2z"/><path fill="#87714a" d="M4 15h4v4h5v4h4v4h-7v-4H6v-4H4zM1 27l6-6 4 4-6 6H1z"/>',
   grassBlock:
     '<path fill="#745037" d="M3 11h26v18H3z"/><path fill="#9c6b40" d="M3 11h6v4h5v-4h8v8h7v6h-8v-4h-8v8H3z"/><path fill="#67a844" d="M3 3h26v10H3z"/><path fill="#95c956" d="M3 3h8v4h8V3h10v4h-5v4H9V7H3z"/><path fill="#3f7f34" d="M3 11h26v4h-5v4h-4v-4h-8v3H7v-3H3z"/>',
   dirtBlock:
@@ -71,12 +89,25 @@ export function Landscape({
   night?: boolean;
   compact?: boolean;
 }) {
+  const scene = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const element = scene.current;
+    if (!element || !("IntersectionObserver" in window)) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      element.dataset.visible = String(entry?.isIntersecting ?? false);
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
   return (
     <div
+      ref={scene}
       className={`landscape ${night ? "night" : ""} ${compact ? "compact" : ""}`}
       aria-hidden="true"
     >
       <div className="landscape-sky" />
+      <div className="landscape-art" />
+      <div className="landscape-atmosphere" />
       <Asset name={night ? "moon" : "sun"} size={64} className="scene-sun" />
       <Asset name="cloud" size={150} className="scene-cloud cloud-one" />
       <Asset name="cloud" size={110} className="scene-cloud cloud-two" />
@@ -100,6 +131,11 @@ export function Landscape({
       <Asset name="bee" size={26} className="scene-bee" />
       <div className="scene-particles">
         {Array.from({ length: 8 }, (_, i) => (
+          <i key={i} style={{ "--i": i } as CSSProperties} />
+        ))}
+      </div>
+      <div className="scene-stars" aria-hidden="true">
+        {Array.from({ length: 12 }, (_, i) => (
           <i key={i} style={{ "--i": i } as CSSProperties} />
         ))}
       </div>

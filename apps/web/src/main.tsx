@@ -16,7 +16,9 @@ import { UsersPage } from "./UsersPage.tsx";
 import { SettingsPage } from "./SettingsPage.tsx";
 import { NotificationsPage } from "./NotificationsPage.tsx";
 import { ErrorBoundary } from "./ErrorBoundary.tsx";
+import { Experience } from "./Experience.tsx";
 import "./styles.css";
+import "./adventure.css";
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: { staleTime: 5000, retry: 1, refetchOnWindowFocus: false },
@@ -66,9 +68,11 @@ createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ErrorBoundary>
       <I18nProvider>
-        <QueryClientProvider client={queryClient}>
-          <RouterProvider router={router} />
-        </QueryClientProvider>
+        <Experience>
+          <QueryClientProvider client={queryClient}>
+            <RouterProvider router={router} />
+          </QueryClientProvider>
+        </Experience>
       </I18nProvider>
     </ErrorBoundary>
   </React.StrictMode>,
