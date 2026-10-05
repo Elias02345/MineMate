@@ -252,21 +252,21 @@ test("uploads saved worlds through ZIP and native folder selection", async ({
   }
 });
 
-test("management pages and wizard controls remain reachable on small screens and short windows", async ({
-  page,
-}) => {
-  await login(page);
-  await page.emulateMedia({ reducedMotion: "reduce" });
-  const server = await makeServer(
+for (const viewport of [
+  { width: 320, height: 568 },
+  { width: 768, height: 600 },
+  { width: 1024, height: 600 },
+  { width: 1920, height: 1080 },
+]) {
+  test(`management pages and wizard controls remain reachable at ${viewport.width}×${viewport.height}`, async ({
     page,
-    "A_long_world_name_with_no_breaks_to_exercise_responsive_controls",
-  );
-  for (const viewport of [
-    { width: 320, height: 568 },
-    { width: 768, height: 600 },
-    { width: 1024, height: 600 },
-    { width: 1920, height: 1080 },
-  ]) {
+  }) => {
+    await login(page);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    const server = await makeServer(
+      page,
+      "A_long_world_name_with_no_breaks_to_exercise_responsive_controls",
+    );
     await page.setViewportSize(viewport);
     await page.goto(`/servers/${server.id}`);
     await page.getByLabel("Advanced mode", { exact: true }).check();
@@ -316,5 +316,5 @@ test("management pages and wizard controls remain reachable on small screens and
       .getByRole("dialog")
       .getByRole("button", { name: "Close", exact: true })
       .click();
-  }
-});
+  });
+}

@@ -35,7 +35,7 @@ the UI upgrade does not require starting new Minecraft servers.
   traversal rejection and recovery after a failed imported-world startup.
 - The default suite skips its opt-in Docker test. `npm run test:docker` passes
   separately with an actual, uniquely owned, temporary Engine container.
-- Eight browser tests pass: desktop onboarding, wizard, lifecycle, console,
+- Eleven browser tests pass: desktop onboarding, wizard, lifecycle, console,
   settings, backup/restore, CloudGate endpoint and user creation; German mobile
   layout, reduced motion and muted sound. Their explicitly named Docker/protocol
   fixture is a test fixture rather than Minecraft. Companion and audio coverage
