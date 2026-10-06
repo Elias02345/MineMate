@@ -65,7 +65,8 @@ export async function createApp(options: AppOptions = {}) {
     logger: options.logger ?? true,
     trustProxy: config.trustProxy,
     bodyLimit: 3 * 1024 ** 2,
-    requestTimeout: 30000,
+    // Large streamed upload batches must not expire after 30 seconds.
+    requestTimeout: 0,
   });
   updates.registerConfiguration();
   await app.register(cookie);
@@ -76,7 +77,7 @@ export async function createApp(options: AppOptions = {}) {
   });
   await app.register(websocket, { options: { maxPayload: 64 * 1024 } });
   await app.register(multipart, {
-    limits: { fileSize: 512 * 1024 ** 2, files: 100, parts: 110 },
+    limits: { fileSize: 512 * 1024 ** 2, files: Infinity, parts: Infinity },
   });
   app.decorateRequest("user", null);
   app.decorateRequest("sessionId", null);

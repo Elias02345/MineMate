@@ -367,6 +367,7 @@ export class Files {
         root = servers.paths.server(s.id);
       try {
         const staged: { source: string; target: string }[] = [];
+        const destinations = new Set<string>();
         for (const input of inputs) {
           relativeSafe(input.name);
           if (input.name.includes("/"))
@@ -392,11 +393,12 @@ export class Files {
               servers.paths.server(s.id, "uploads"),
               input.filename,
             );
-          if (staged.some((f) => f.target === target))
+          if (destinations.has(target))
             throw new AppError(
               "UPLOAD_NAME",
               "Two uploads have the same filename.",
             );
+          destinations.add(target);
           if (/\.(json|ya?ml)$/i.test(input.name)) {
             if ((await stat(source)).size > 2 * 1024 ** 2)
               throw new AppError(
@@ -429,7 +431,13 @@ export class Files {
         );
         try {
           phase("Applying the complete file upload");
-          for (const file of staged) await rename(file.source, file.target);
+          for (const file of staged) {
+            await mkdir(path.dirname(file.target), {
+              recursive: true,
+              mode: 0o700,
+            });
+            await rename(file.source, file.target);
+          }
           servers.state(s, "STOPPED");
           servers.store.audit(servers.actor(op.id), s.id, "files.uploaded", {
             count: staged.length,

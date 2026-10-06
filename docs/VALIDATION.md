@@ -12,6 +12,33 @@ byte-for-byte public release download checks and the full production Compose
 smoke against that published amd64 image also pass. GitHub names the environment
 asset `default.env.example`; download it as `.env`.
 
+## Large upload batches (0.4.1)
+
+On 2026-10-06, strict TypeScript, lint, all 69 unit/API checks and production
+builds pass. The upload API accepts 1,001 Fabric mod JARs, 1,001 Paper plugin
+JARs and 1,001 ordinary files per request, exceeding both the old 100-file cap
+and the multipart parser's default 1,000-part cap. JAR batches make one recovery
+point and return an originally running server to RUNNING. A 151-file batch
+whose last JAR is invalid leaves the running server untouched, cleans all
+staging files and accepts the corrected 150-file retry. A native world-folder
+upload with 10,001 files preserves the last region file's relative path.
+
+All 16 browser tests pass. The NeoForge creation flow selects 201 mods in two
+selections alongside its server installer, then uploads another 121 mods through
+Inventory and verifies all 322 entries. The Paper wizard installs 201 plugins.
+Existing atomic retries, server/world upload separation, management controls and
+four viewport checks also pass. These use controlled runtime/JAR fixtures;
+earlier real Minecraft coverage is recorded below.
+
+Uploads stream to staging without fixed file/part counts or a 30-second request
+deadline. Duplicate checks use sets as collections grow. Ordinary-file uploads
+also create missing destination directories. Existing byte limits, path checks,
+JAR validation, archive expansion checks and recovery behavior remain in place.
+The UI host port stays 18080; Docker's internal port stays 8080.
+The production 0.4.1 image builds and passes a fresh Compose smoke for the
+private socket proxy, automatic data ownership/bind discovery, non-root/read-only
+startup and owner/session persistence after recreation.
+
 ## Console, players and sharing (0.4.0)
 
 On 2026-10-06, strict TypeScript, lint, all 65 unit/API checks and production

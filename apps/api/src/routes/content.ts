@@ -64,6 +64,7 @@ export function registerContentRoutes(context: RouteContext) {
       custom: boolean;
       software: string;
     }[] = [];
+    const names = new Set<string>();
     const folderName =
       kind === "world-folder" ? "folder-" + randomUUID() : null;
     const folder = folderName
@@ -77,8 +78,7 @@ export function registerContentRoutes(context: RouteContext) {
       if (folder) await mkdir(folder, { mode: 0o700 });
       for await (const part of r.parts({
         limits: {
-          files: folder ? 10000 : 100,
-          parts: folder ? 10002 : 110,
+          fields: folder ? 1 : 0,
           fieldSize: 2 * 1024 ** 2,
         },
       })) {
@@ -101,7 +101,6 @@ export function registerContentRoutes(context: RouteContext) {
             relativePaths = z
               .array(z.string().min(1).max(512))
               .min(1)
-              .max(10000)
               .parse(value)
               .map((p) => {
                 relativeSafe(p);
@@ -176,11 +175,12 @@ export function registerContentRoutes(context: RouteContext) {
             randomUUID() +
             ([".zip", ".mrpack", ".jar"].includes(ext) ? ext : ".upload"),
           target = path.join(paths.server(s.id, "uploads"), filename);
-        if (operations.some((f) => f.name === name))
+        if (names.has(name))
           throw new AppError(
             "UPLOAD_COLLISION",
             "Two selected files have the same filename.",
           );
+        names.add(name);
         operations.push({
           filename,
           name,
@@ -209,12 +209,10 @@ export function registerContentRoutes(context: RouteContext) {
           kind: "world",
         });
         queued = true;
-        return reply
-          .code(202)
-          .send({
-            operation,
-            summary: { files: folderCount, bytes, format: "folder" },
-          });
+        return reply.code(202).send({
+          operation,
+          summary: { files: folderCount, bytes, format: "folder" },
+        });
       }
       if (!operations.length)
         throw new AppError("UPLOAD", "Select at least one file.");

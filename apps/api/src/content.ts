@@ -301,6 +301,7 @@ export class Content {
     if (s.config.edition !== "JAVA")
       throw new AppError("CAPABILITY", "Bedrock cannot run Java archives.");
     const validated: { file: string; relative: string; server: boolean }[] = [];
+    const destinations = new Set<string>();
     let targetConfig = s.config;
     try {
       for (const input of files) {
@@ -324,11 +325,12 @@ export class Content {
           : (["PAPER", "PURPUR"].includes(s.config.software)
               ? "plugins/"
               : "mods/") + name;
-        if (validated.some((f) => f.relative === relative))
+        if (destinations.has(relative))
           throw new AppError(
             "JAR_COLLISION",
             "Two uploads use the same filename.",
           );
+        destinations.add(relative);
         validated.push({ file, relative, server: custom });
       }
       phase("Saving a recovery point");

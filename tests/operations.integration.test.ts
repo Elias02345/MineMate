@@ -78,7 +78,7 @@ describe("world operations with a controlled Docker fixture", () => {
     await rm(root, { recursive: true, force: true });
   });
   async function finish(id: string) {
-    for (let i = 0; i < 300; i++) {
+    for (let i = 0; i < 1500; i++) {
       const row = instance.store.get(
         "SELECT * FROM operations WHERE id=?",
         id,
@@ -193,6 +193,107 @@ describe("world operations with a controlled Docker fixture", () => {
       ).toEqual([]);
       expect(instance.store.content(server.id)).toHaveLength(0);
     }
+  });
+  it.each(["FABRIC", "PAPER"] as const)(
+    "installs 1,001 %s JARs in one batch with one recovery point",
+    async (software) => {
+      if (software !== server.config.software) {
+        await instance.servers.stop(server);
+        await instance.servers.replaceContainer(server, {
+          ...server.config,
+          software,
+        });
+        server = instance.servers.get(server.id);
+        await instance.servers.start(server);
+        await instance.servers.waitReady(server);
+      }
+      const jar = await archive(
+        software === "PAPER"
+          ? { "plugin.yml": "name: Fixture\nmain: example.Plugin\n" }
+          : { "fabric.mod.json": '{"id":"fixture","version":"1"}' },
+      );
+      const files = Array.from({ length: 1001 }, (_, i) => ({
+        name: `content-${i}.jar`,
+        data: jar,
+      }));
+      const response = await upload("jar", files);
+      expect(response.statusCode, response.body).toBe(202);
+      const op = await finish(response.json().operation.id);
+      expect(op.status, op.error ?? undefined).toBe("SUCCEEDED");
+      const directory = software === "PAPER" ? "plugins" : "mods";
+      expect(instance.store.content(server.id)).toHaveLength(files.length);
+      expect(
+        await readdir(
+          path.join(instance.servers.paths.server(server.id), directory),
+        ),
+      ).toHaveLength(files.length);
+      expect(
+        await readFile(
+          path.join(
+            instance.servers.paths.server(server.id),
+            directory,
+            files.at(-1)!.name,
+          ),
+        ),
+      ).toEqual(jar);
+      expect(instance.store.backups(server.id)).toHaveLength(1);
+      expect(instance.servers.get(server.id).state).toBe("RUNNING");
+      expect(
+        await readdir(instance.servers.paths.server(server.id, "uploads")),
+      ).toEqual([]);
+    },
+  );
+  it("cleans a large invalid batch and accepts the corrected retry atomically", async () => {
+    const jar = await archive({ "fabric.mod.json": '{"id":"fixture"}' });
+    const files = Array.from({ length: 150 }, (_, i) => ({
+      name: `retry-${i}.jar`,
+      data: jar,
+    }));
+    const rejected = await upload("jar", [
+      ...files,
+      { name: "invalid.jar", data: Buffer.from("invalid") },
+    ]);
+    expect(rejected.statusCode).toBe(400);
+    expect(instance.servers.get(server.id).state).toBe("RUNNING");
+    expect(instance.store.content(server.id)).toHaveLength(0);
+    expect(instance.store.backups(server.id)).toHaveLength(0);
+    expect(
+      await readdir(instance.servers.paths.server(server.id, "uploads")),
+    ).toEqual([]);
+    const retried = await upload("jar", files);
+    expect(retried.statusCode, retried.body).toBe(202);
+    expect((await finish(retried.json().operation.id)).status).toBe(
+      "SUCCEEDED",
+    );
+    expect(instance.store.content(server.id)).toHaveLength(files.length);
+    expect(instance.store.backups(server.id)).toHaveLength(1);
+    expect(instance.servers.get(server.id).state).toBe("RUNNING");
+  });
+  it("uploads 1,001 ordinary files without a multipart part-count ceiling", async () => {
+    const files = Array.from({ length: 1001 }, (_, i) => ({
+      name: `file-${i}.txt`,
+      data: Buffer.from(`content ${i}`),
+    }));
+    const response = await upload(
+      "file",
+      files,
+      undefined,
+      "&directory=extras",
+    );
+    expect(response.statusCode, response.body).toBe(202);
+    const op = await finish(response.json().operation.id);
+    expect(op.status, op.error ?? undefined).toBe("SUCCEEDED");
+    const directory = path.join(
+      instance.servers.paths.server(server.id),
+      "extras",
+    );
+    expect(await readdir(directory)).toHaveLength(files.length);
+    expect(await readFile(path.join(directory, files.at(-1)!.name))).toEqual(
+      files.at(-1)!.data,
+    );
+    expect(
+      await readdir(instance.servers.paths.server(server.id, "uploads")),
+    ).toEqual([]);
   });
   it("uses an uploaded NeoForge installer as server software and keeps mods separate", async () => {
     await instance.servers.stop(server);
@@ -345,11 +446,14 @@ describe("world operations with a controlled Docker fixture", () => {
       await readdir(instance.servers.paths.server(server.id, "imports")),
     ).toEqual([]);
   });
-  it("streams world folders with more than 100 files while preserving relative paths", async () => {
+  it("streams world folders with 10,001 files while preserving relative paths", async () => {
     await instance.servers.stop(server);
     const names = [
       "My world/level.dat",
-      ...Array.from({ length: 105 }, (_, i) => `My world/region/r.${i}.0.mca`),
+      ...Array.from(
+        { length: 10000 },
+        (_, i) => `My world/region/r.${i}.0.mca`,
+      ),
     ];
     const response = await upload(
       "world-folder",
@@ -366,7 +470,7 @@ describe("world operations with a controlled Docker fixture", () => {
       await readFile(
         path.join(
           instance.servers.paths.server(server.id),
-          "world/region/r.104.0.mca",
+          "world/region/r.9999.0.mca",
         ),
         "utf8",
       ),

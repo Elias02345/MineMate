@@ -34,8 +34,8 @@ const messages = {
     "Datei auswählen oder hier ablegen.",
   ],
   bulkJarHint: [
-    "Choose several files together, add more, or drop them here. Up to 100 files per upload.",
-    "Mehrere Dateien gemeinsam auswählen, weitere hinzufügen oder hier ablegen. Bis zu 100 Dateien pro Upload.",
+    "Choose several files together, add more, or drop them here. There is no file-count limit.",
+    "Mehrere Dateien gemeinsam auswählen, weitere hinzufügen oder hier ablegen. Die Dateianzahl ist nicht begrenzt.",
   ],
   folderUploadHint: [
     "Select the complete world folder. Its subfolders and file paths are preserved.",
@@ -62,10 +62,6 @@ const messages = {
     "Eine vollständige gespeicherte Welt mit level.dat und Region-Dateien (Java) oder db-Ordner (Bedrock) hochladen. Übergeordnete ZIP-Ordner werden erkannt. Ein Wiederherstellungspunkt schützt die aktuelle Welt.",
   ],
   uploadTransferring: ["Transferring files", "Dateien übertragen"],
-  uploadCountError: [
-    "Select at most 100 files, or 10,000 files for a world folder.",
-    "Höchstens 100 Dateien bzw. 10.000 Dateien für einen Weltordner auswählen.",
-  ],
   uploadSizeError: [
     "The limit is 512 MB per file and 20 GB in total. Use a ZIP for a larger world folder.",
     "Das Limit beträgt 512 MB pro Datei und 20 GB insgesamt. Größere Weltordner als ZIP hochladen.",

@@ -24,8 +24,7 @@ export async function waitForOperation(
 export function selectionError(
   files: File[],
   folder: boolean,
-): "uploadCountError" | "uploadSizeError" | "uploadDuplicateError" | null {
-  if (files.length > (folder ? 10000 : 100)) return "uploadCountError";
+): "uploadSizeError" | "uploadDuplicateError" | null {
   if (
     files.some((f) => f.size > 512 * 1024 ** 2) ||
     files.reduce((n, f) => n + f.size, 0) > 20 * 1024 ** 3

@@ -95,7 +95,7 @@ async function fit(page: Page, selector: string) {
   ).toBe(true);
 }
 
-test("creates NeoForge with its installer and a bulk mod selection in the wizard", async ({
+test("creates NeoForge with 201 wizard mods and adds 121 mods from Inventory", async ({
   page,
 }) => {
   await login(page);
@@ -152,12 +152,19 @@ test("creates NeoForge with its installer and a bulk mod selection in the wizard
       buffer: mod,
     },
   ]);
-  await page.locator('input[type="file"]').setInputFiles({
-    name: "third-mod.jar",
-    mimeType: "application/java-archive",
-    buffer: mod,
-  });
-  await expect(page.locator(".upload-files li")).toHaveCount(3);
+  await page.locator('input[type="file"]').setInputFiles([
+    {
+      name: "third-mod.jar",
+      mimeType: "application/java-archive",
+      buffer: mod,
+    },
+    ...Array.from({ length: 198 }, (_, i) => ({
+      name: `wizard-mod-${i}.jar`,
+      mimeType: "application/java-archive",
+      buffer: mod,
+    })),
+  ]);
+  await expect(page.locator(".upload-files li")).toHaveCount(201);
   await fit(page, ".modal-body");
   await page.screenshot({
     path: "docs/screenshots/wizard-mod-upload.png",
@@ -186,15 +193,23 @@ test("creates NeoForge with its installer and a bulk mod selection in the wizard
     await (
       await page.request.get(`/api/v1/servers/${serverId}/content`)
     ).json(),
-  ).toHaveLength(3);
+  ).toHaveLength(201);
   await page
     .getByRole("button", { name: "Upload mod / plugin JARs", exact: true })
     .click();
-  await page.locator('input[type="file"]').setInputFiles({
-    name: "later-mod.jar",
-    mimeType: "application/java-archive",
-    buffer: mod,
-  });
+  await page.locator('input[type="file"]').setInputFiles([
+    {
+      name: "later-mod.jar",
+      mimeType: "application/java-archive",
+      buffer: mod,
+    },
+    ...Array.from({ length: 120 }, (_, i) => ({
+      name: `later-mod-${i}.jar`,
+      mimeType: "application/java-archive",
+      buffer: mod,
+    })),
+  ]);
+  await expect(page.locator(".upload-files li")).toHaveCount(121);
   await page
     .getByLabel("I trust these files and confirm their installation.")
     .check();
@@ -204,6 +219,11 @@ test("creates NeoForge with its installer and a bulk mod selection in the wizard
     .click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(page.locator(".inventory-list")).toContainText("later-mod.jar");
+  expect(
+    await (
+      await page.request.get(`/api/v1/servers/${serverId}/content`)
+    ).json(),
+  ).toHaveLength(322);
 });
 
 test("custom JAR, world and bulk mods retry only the failed batch without duplicating the server", async ({
@@ -344,13 +364,11 @@ test("changing software clears mods and Vanilla and Bedrock skip the content ste
   await page.getByRole("button", { name: /Make it your own/ }).click();
   await next.click();
   await next.click();
-  await page
-    .locator('input[type="file"]')
-    .setInputFiles({
-      name: "discarded-mod.jar",
-      mimeType: "application/java-archive",
-      buffer: await archive({ "fabric.mod.json": "{}" }),
-    });
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "discarded-mod.jar",
+    mimeType: "application/java-archive",
+    buffer: await archive({ "fabric.mod.json": "{}" }),
+  });
   await page.getByRole("button", { name: "Back", exact: true }).click();
   await page
     .getByRole("combobox", { name: "Server software", exact: true })
@@ -378,9 +396,7 @@ test("changing software clears mods and Vanilla and Bedrock skip the content ste
   await expect(page.locator(".wizard-progress > div")).toHaveCount(7);
 });
 
-test("Paper creation installs a plugin batch into plugins", async ({
-  page,
-}) => {
+test("Paper creation installs 201 plugins into plugins", async ({ page }) => {
   await login(page);
   await page
     .getByRole("button", { name: "Create a world", exact: true })
@@ -398,8 +414,8 @@ test("Paper creation installs a plugin batch into plugins", async ({
     "plugin.yml": "name: Example\nmain: example.Plugin\n",
   });
   await page.locator('input[type="file"]').setInputFiles(
-    ["one", "two"].map((name) => ({
-      name: name + ".jar",
+    Array.from({ length: 201 }, (_, i) => ({
+      name: `plugin-${i}.jar`,
       mimeType: "application/java-archive",
       buffer: plugin,
     })),
@@ -416,10 +432,10 @@ test("Paper creation installs a plugin batch into plugins", async ({
   const content = (await (
     await page.request.get(`/api/v1/servers/${serverId}/content`)
   ).json()) as { filename: string }[];
-  expect(content.map((item) => item.filename).sort()).toEqual([
-    "plugins/one.jar",
-    "plugins/two.jar",
-  ]);
+  expect(content).toHaveLength(201);
+  expect(content.map((item) => item.filename)).toContain(
+    "plugins/plugin-200.jar",
+  );
 });
 
 test("uploads saved worlds through ZIP and native folder selection", async ({

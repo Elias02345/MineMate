@@ -86,9 +86,13 @@ phases and remains open until the operation completes. Switching upload type
 clears stale files and confirmation. Startup errors remain visible in Activity
 and Repair. Management dialogs keep their action buttons outside the scrolling
 form, including narrow or short viewports.
+MineMate does not impose a 30-second request deadline on streamed uploads.
 
-- JAR / general file batches: at most 100 files.
-- World folders: at most 10,000 files, with a complete relative-path manifest.
+- Mod, plugin and general file batches have no fixed file-count limit, both in
+  the creation wizard and when uploading later. Files are streamed to staging
+  and the complete batch is validated before installation.
+- World folders have no fixed file-count limit and require a complete
+  relative-path manifest (at most 2 MB of path metadata).
 - Each uploaded file: at most 512 MB; aggregate upload: at most 20 GB. Larger
   folders can be ZIP-compressed, within the archive-upload and expansion limits.
 - Archive expansion: 20 GB total, 4 GB per member, 100,000 members, bounded ratios.
