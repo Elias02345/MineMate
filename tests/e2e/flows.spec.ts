@@ -33,6 +33,8 @@ test.describe.serial("graphical first-run and management", () => {
     await page.getByRole("button", { name: /Add little superpowers/ }).click();
     await page.getByRole("button", { name: "Continue", exact: true }).click();
     await page.getByLabel("Enter a specific version").fill("1.21.1");
+    // Optional plugin selection for Paper.
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
     await page.getByRole("button", { name: "Continue", exact: true }).click();
     await page.getByRole("button", { name: "Continue", exact: true }).click();
     await page.getByRole("button", { name: "Continue", exact: true }).click();

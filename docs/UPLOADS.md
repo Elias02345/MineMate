@@ -26,7 +26,20 @@ it to continue, instead of creating a duplicate world.
 
 ## Upload a mod or plugin collection
 
-Open **Inventory → Upload mod / plugin JARs**. Select several `.jar` files together,
+During Java creation, the version/software page is followed by **Choose your mods**
+for Fabric, Forge, NeoForge and Custom. This step also appears when you upload your
+own server JAR. Select multiple trusted `.jar` files, add further selections or
+remove individual files. Mods are optional; the review lists the chosen filenames.
+Paper and Purpur offer **Choose your plugins** instead. Vanilla and Bedrock skip
+this step. Changing the software or edition clears incompatible selections.
+
+Server JAR, world/archive import and the content batch are applied in that order.
+A failed batch keeps the created world and completed uploads; correct the mod
+selection and retry without creating another server or repeating a successful
+world import. Duplicate filenames, excess size/count or non-JAR extensions block
+continuation; archive validation also runs before any batch is installed.
+
+For an existing server, open **Inventory → Upload mod / plugin JARs**. Select several `.jar` files together,
 add further selections, or drag files into the picker. Individual selections can
 be removed. Confirm that the files are trusted, then upload the batch.
 

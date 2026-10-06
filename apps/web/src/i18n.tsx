@@ -9,6 +9,18 @@ const messages = {
   automaticDownload: ["Download automatically", "Automatisch herunterladen"],
   uploadServerJar: ["Upload my own JAR", "Eigene JAR hochladen"],
   serverJarUpload: ["Upload server JAR", "Server-JAR hochladen"],
+  wizardMods: ["Choose your mods", "Wähle deine Mods"],
+  wizardPlugins: ["Choose your plugins", "Wähle deine Plugins"],
+  modJarUpload: ["Upload mod JARs", "Mod-JARs hochladen"],
+  pluginJarUpload: ["Upload plugin JARs", "Plugin-JARs hochladen"],
+  wizardContentOptional: [
+    "Optional: select several trusted JARs now, or add them later in Inventory. The server JAR is selected separately in the previous step.",
+    "Optional: Jetzt mehrere vertrauenswürdige JARs auswählen oder später im Inventar hinzufügen. Die Server-JAR wird separat im vorherigen Schritt ausgewählt.",
+  ],
+  uploadJarTypeError: [
+    "Select only .jar files for mods or plugins.",
+    "Für Mods oder Plugins ausschließlich .jar-Dateien auswählen.",
+  ],
   bulkJarUpload: ["Upload mod / plugin JARs", "Mod- / Plugin-JARs hochladen"],
   uploadType: ["Upload type", "Upload-Art"],
   worldZipUpload: ["World ZIP", "Welt als ZIP"],

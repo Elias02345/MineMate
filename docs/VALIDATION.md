@@ -12,6 +12,34 @@ byte-for-byte public release download checks and the full production Compose
 smoke against that published amd64 image also pass. GitHub names the environment
 asset `default.env.example`; download it as `.env`.
 
+## Creation wizard mod uploads (0.3.1)
+
+On 2026-10-06, strict TypeScript, lint, all 63 unit/API checks and production
+builds pass. The production Docker image builds, and a fresh Compose smoke
+passes automatic ownership/bind discovery, the private socket proxy, non-root
+read-only startup and owner/session persistence after recreation. The creation wizard offers a separate optional bulk-JAR step for
+Fabric, Forge, NeoForge and Custom, including uploaded server JARs; Paper/Purpur
+use plugins, and Vanilla/Bedrock skip the step. Server, world and content uploads
+run sequentially, with manual content last.
+
+All 14 browser tests pass. Browser coverage creates NeoForge with its installer and three mods chosen in the
+wizard, then adds another mod from Inventory. A Custom server test uploads a
+server JAR and saved-world ZIP, rejects an invalid member of a two-mod batch
+without installing either mod, corrects the selection and retries only that
+batch. It verifies one server creation, one server/world upload, the executable
+at the server root, mod content in `mods/`, and intact imported world bytes.
+Paper receives two plugins in `plugins/`. Other checks cover duplicate names,
+non-JAR selections, software changes clearing mods, and the Vanilla/Bedrock step
+sequence. Each viewport test covers the additional step and reachable actions.
+The fixture models independent clients using trusted test-only forwarded
+addresses so the fast suite does not share one production IP request quota;
+production rate limits and proxy defaults are unchanged.
+
+This release changes the creation UI and reuses the existing, previously tested
+JAR/import backend. No new live Minecraft client or server run was performed for
+this wizard fix. The actual NeoForge/mod/world runtime coverage below belongs
+to 0.3.0.
+
 ## Adventure UI checks (0.2.0)
 
 The visual upgrade passes strict type checking, lint, 51 unit/API checks and five

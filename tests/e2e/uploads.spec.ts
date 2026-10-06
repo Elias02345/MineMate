@@ -1,9 +1,19 @@
 import { test, expect, type Page } from "@playwright/test";
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import os from "node:os";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import yazl from "yazl";
 import type { Server, Operation } from "../../packages/shared/src/index.ts";
+
+// Model independent browser clients so this fast suite does not share one IP's
+// production request quota. Forwarded addresses are trusted only by the fixture.
+test.beforeEach(async ({ context }, info) => {
+  const hash = createHash("sha256").update(info.testId).digest();
+  await context.setExtraHTTPHeaders({
+    "x-forwarded-for": `198.18.${hash[0]}.${hash[1]}`,
+  });
+});
 
 async function archive(entries: Record<string, string>) {
   const zip = new yazl.ZipFile(),
@@ -85,7 +95,7 @@ async function fit(page: Page, selector: string) {
   ).toBe(true);
 }
 
-test("creates NeoForge with an uploaded installer and separately bulk uploads mods", async ({
+test("creates NeoForge with its installer and a bulk mod selection in the wizard", async ({
   page,
 }) => {
   await login(page);
@@ -122,25 +132,10 @@ test("creates NeoForge with an uploaded installer and separately bulk uploads mo
     path: "docs/screenshots/server-jar-upload.png",
     animations: "disabled",
   });
-  for (let i = 0; i < 3; i++)
-    await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await page.getByLabel("I have read and accept").check();
   await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await page.getByLabel("Give your world a name").fill("Uploaded NeoForge");
-  await page.getByRole("button", { name: "Craft this world" }).click();
   await expect(
-    page.getByRole("heading", { name: "Uploaded NeoForge", exact: true }),
+    page.getByRole("heading", { name: "Choose your mods", exact: true }),
   ).toBeVisible();
-  const serverId = page.url().split("/").at(-1)!;
-  const server = (await (
-    await page.request.get(`/api/v1/servers/${serverId}`)
-  ).json()) as Server;
-  expect(server.config.software).toBe("NEOFORGE");
-  expect(server.config.serverSource).toBe("upload");
-  await page.getByRole("tab", { name: "Inventory", exact: true }).click();
-  await page
-    .getByRole("button", { name: "Upload mod / plugin JARs", exact: true })
-    .click();
   const mod = await archive({
     "META-INF/neoforge.mods.toml": "modLoader=javafml",
     "example/Mod.class": "controlled fixture",
@@ -163,19 +158,28 @@ test("creates NeoForge with an uploaded installer and separately bulk uploads mo
     buffer: mod,
   });
   await expect(page.locator(".upload-files li")).toHaveCount(3);
-  await page
-    .getByLabel("I trust these files and confirm their installation.")
-    .check();
   await fit(page, ".modal-body");
   await page.screenshot({
-    path: "docs/screenshots/bulk-mod-upload.png",
+    path: "docs/screenshots/wizard-mod-upload.png",
     animations: "disabled",
   });
-  await page
-    .getByRole("dialog")
-    .getByRole("button", { name: "Upload", exact: true })
-    .click();
-  await expect(page.getByRole("dialog")).toHaveCount(0);
+  for (let i = 0; i < 3; i++)
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByLabel("I have read and accept").check();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(page.locator(".review-grid")).toContainText("third-mod.jar");
+  await page.getByLabel("Give your world a name").fill("Uploaded NeoForge");
+  await page.getByRole("button", { name: "Craft this world" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Uploaded NeoForge", exact: true }),
+  ).toBeVisible();
+  const serverId = page.url().split("/").at(-1)!;
+  const server = (await (
+    await page.request.get(`/api/v1/servers/${serverId}`)
+  ).json()) as Server;
+  expect(server.config.software).toBe("NEOFORGE");
+  expect(server.config.serverSource).toBe("upload");
+  await page.getByRole("tab", { name: "Inventory", exact: true }).click();
   await expect(page.locator(".inventory-list")).toContainText("first-mod.jar");
   await expect(page.locator(".inventory-list")).toContainText("third-mod.jar");
   expect(
@@ -183,6 +187,239 @@ test("creates NeoForge with an uploaded installer and separately bulk uploads mo
       await page.request.get(`/api/v1/servers/${serverId}/content`)
     ).json(),
   ).toHaveLength(3);
+  await page
+    .getByRole("button", { name: "Upload mod / plugin JARs", exact: true })
+    .click();
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "later-mod.jar",
+    mimeType: "application/java-archive",
+    buffer: mod,
+  });
+  await page
+    .getByLabel("I trust these files and confirm their installation.")
+    .check();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Upload", exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.locator(".inventory-list")).toContainText("later-mod.jar");
+});
+
+test("custom JAR, world and bulk mods retry only the failed batch without duplicating the server", async ({
+  page,
+}) => {
+  await login(page);
+  const requests: string[] = [];
+  page.on("request", (request) => {
+    if (
+      request.method() === "POST" &&
+      /\/api\/v1\/servers(?:$|\/[^/]+\/uploads\?)/.test(request.url())
+    )
+      requests.push(
+        new URL(request.url()).searchParams.get("kind") ?? "create",
+      );
+  });
+  await page
+    .getByRole("button", { name: "Create a world", exact: true })
+    .first()
+    .click();
+  const next = page.getByRole("button", { name: "Continue", exact: true });
+  await next.click();
+  await page.getByRole("button", { name: /Your own server JAR/ }).click();
+  await next.click();
+  const serverJar = await archive({
+    "META-INF/MANIFEST.MF": "Main-Class: example.Server\n",
+  });
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "custom.jar",
+    mimeType: "application/java-archive",
+    buffer: serverJar,
+  });
+  await next.click();
+  const picker = page.locator('input[type="file"]');
+  const invalid = {
+    name: "bad-mod.jar",
+    mimeType: "application/java-archive",
+    buffer: await archive({ "README.txt": "not a mod" }),
+  };
+  await picker.setInputFiles([invalid, invalid]);
+  await expect(next).toBeDisabled();
+  await page
+    .getByRole("button", { name: "Clear selection", exact: true })
+    .click();
+  await picker.setInputFiles({
+    name: "wrong.zip",
+    mimeType: "application/zip",
+    buffer: invalid.buffer,
+  });
+  await expect(next).toBeDisabled();
+  await page
+    .getByRole("button", { name: "Clear selection", exact: true })
+    .click();
+  const valid = {
+    name: "valid-mod.jar",
+    mimeType: "application/java-archive",
+    buffer: await archive({ "fabric.mod.json": "{}" }),
+  };
+  await picker.setInputFiles([valid, invalid]);
+  await next.click();
+  await next.click();
+  await page
+    .getByRole("combobox", {
+      name: "A fresh beginning, or a familiar home?",
+      exact: true,
+    })
+    .selectOption("world");
+  await picker.setInputFiles({
+    name: "world.zip",
+    mimeType: "application/zip",
+    buffer: await archive({
+      "Saved/level.dat": "imported world",
+      "Saved/region/r.0.0.mca": "saved region",
+    }),
+  });
+  await next.click();
+  await page.getByLabel("I have read and accept").check();
+  await next.click();
+  await page.getByLabel("Give your world a name").fill("Custom wizard retry");
+  const craft = page.getByRole("button", { name: "Craft this world" });
+  await craft.click();
+  await page.getByText("Technical details", { exact: true }).click();
+  await expect(
+    page.getByText("This archive contains no recognizable mod or plugin.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Open the created world", exact: true }),
+  ).toBeVisible();
+  expect(requests).toEqual(["create", "custom", "world", "jar"]);
+  const servers = (await (
+    await page.request.get("/api/v1/servers")
+  ).json()) as Server[];
+  const server = servers.find(
+    (server) => server.name === "Custom wizard retry",
+  )!;
+  expect(
+    await (
+      await page.request.get(`/api/v1/servers/${server.id}/content`)
+    ).json(),
+  ).toHaveLength(0);
+  await page
+    .getByRole("button", {
+      name: "Remove selected file bad-mod.jar",
+      exact: true,
+    })
+    .click();
+  await craft.click();
+  await expect(
+    page.getByRole("heading", { name: "Custom wizard retry", exact: true }),
+  ).toBeVisible();
+  expect(requests).toEqual(["create", "custom", "world", "jar", "jar"]);
+  const content = (await (
+    await page.request.get(`/api/v1/servers/${server.id}/content`)
+  ).json()) as { filename: string }[];
+  expect(content.map((item) => item.filename)).toEqual(["mods/valid-mod.jar"]);
+  const root = (await (
+    await page.request.get(`/api/v1/servers/${server.id}/files`)
+  ).json()) as { name: string }[];
+  expect(root.map((item) => item.name)).toContain("custom-server.jar");
+  const world = await page.request.get(
+    `/api/v1/servers/${server.id}/files/text?path=world/level.dat`,
+  );
+  expect(await world.json()).toMatchObject({ text: "imported world" });
+});
+
+test("changing software clears mods and Vanilla and Bedrock skip the content step", async ({
+  page,
+}) => {
+  await login(page);
+  const open = page
+    .getByRole("button", { name: "Create a world", exact: true })
+    .first();
+  await open.click();
+  const next = page.getByRole("button", { name: "Continue", exact: true });
+  await next.click();
+  await page.getByRole("button", { name: /Make it your own/ }).click();
+  await next.click();
+  await next.click();
+  await page
+    .locator('input[type="file"]')
+    .setInputFiles({
+      name: "discarded-mod.jar",
+      mimeType: "application/java-archive",
+      buffer: await archive({ "fabric.mod.json": "{}" }),
+    });
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "Server software", exact: true })
+    .selectOption("NEOFORGE");
+  await next.click();
+  await expect(page.locator(".upload-files li")).toHaveCount(0);
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "Server software", exact: true })
+    .selectOption("VANILLA");
+  await next.click();
+  await expect(
+    page.getByRole("heading", { name: "Room for everyone", exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Close", exact: true })
+    .click();
+  await open.click();
+  await page.getByRole("button", { name: /Edition · Bedrock/ }).click();
+  for (let i = 0; i < 3; i++) await next.click();
+  await expect(
+    page.getByRole("heading", { name: "Room for everyone", exact: true }),
+  ).toBeVisible();
+  await expect(page.locator(".wizard-progress > div")).toHaveCount(7);
+});
+
+test("Paper creation installs a plugin batch into plugins", async ({
+  page,
+}) => {
+  await login(page);
+  await page
+    .getByRole("button", { name: "Create a world", exact: true })
+    .first()
+    .click();
+  const next = page.getByRole("button", { name: "Continue", exact: true });
+  await next.click();
+  await page.getByRole("button", { name: /Add little superpowers/ }).click();
+  await next.click();
+  await next.click();
+  await expect(
+    page.getByRole("heading", { name: "Choose your plugins", exact: true }),
+  ).toBeVisible();
+  const plugin = await archive({
+    "plugin.yml": "name: Example\nmain: example.Plugin\n",
+  });
+  await page.locator('input[type="file"]').setInputFiles(
+    ["one", "two"].map((name) => ({
+      name: name + ".jar",
+      mimeType: "application/java-archive",
+      buffer: plugin,
+    })),
+  );
+  for (let i = 0; i < 3; i++) await next.click();
+  await page.getByLabel("I have read and accept").check();
+  await next.click();
+  await page.getByLabel("Give your world a name").fill("Wizard plugins");
+  await page.getByRole("button", { name: "Craft this world" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Wizard plugins", exact: true }),
+  ).toBeVisible();
+  const serverId = page.url().split("/").at(-1)!;
+  const content = (await (
+    await page.request.get(`/api/v1/servers/${serverId}/content`)
+  ).json()) as { filename: string }[];
+  expect(content.map((item) => item.filename).sort()).toEqual([
+    "plugins/one.jar",
+    "plugins/two.jar",
+  ]);
 });
 
 test("uploads saved worlds through ZIP and native folder selection", async ({
@@ -292,7 +529,7 @@ for (const viewport of [
       .getByRole("button", { name: "Create a world", exact: true })
       .first()
       .click();
-    for (let step = 0; step < 7; step++) {
+    for (let step = 0; step < 8; step++) {
       await fit(page, ".modal-body");
       const footer = await page.locator(".modal-footer").boundingBox();
       expect(footer!.y).toBeGreaterThanOrEqual(0);
@@ -301,8 +538,8 @@ for (const viewport of [
         await page.getByRole("button", { name: /Make it your own/ }).click();
       if (step === 2)
         await page.getByLabel("Advanced mode", { exact: true }).check();
-      if (step === 5) await page.getByLabel("I have read and accept").check();
-      if (step < 6)
+      if (step === 6) await page.getByLabel("I have read and accept").check();
+      if (step < 7)
         await page
           .getByRole("button", { name: "Continue", exact: true })
           .click();

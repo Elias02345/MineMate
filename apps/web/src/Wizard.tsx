@@ -27,15 +27,6 @@ import type {
   Operation,
   HostStatus,
 } from "../../../packages/shared/src/index.ts";
-const stepKeys: TranslationKey[] = [
-  "wizardEdition",
-  "wizardStyle",
-  "wizardVersion",
-  "wizardResources",
-  "wizardWorld",
-  "wizardEula",
-  "wizardReview",
-];
 export function Wizard({
   open,
   onOpenChange,
@@ -66,6 +57,7 @@ export function Wizard({
     [serverSource, setServerSource] =
       useState<ServerConfig["serverSource"]>("download"),
     [serverJar, setServerJar] = useState<File | null>(null),
+    [contentJars, setContentJars] = useState<File[]>([]),
     [percent, setPercent] = useState(0),
     created = useRef<{ server: Server; operation: Operation } | null>(null),
     completedUploads = useRef(new Set<string>()),
@@ -86,6 +78,26 @@ export function Wizard({
   useEffect(() => {
     if (!version && versions.data) setVersion(versions.data.recommended);
   }, [versions.data, version]);
+  const supportsContent = edition === "JAVA" && software !== "VANILLA",
+    plugins = ["PAPER", "PURPUR"].includes(software),
+    contentStep: TranslationKey = plugins ? "wizardPlugins" : "wizardMods",
+    contentLabel = t(plugins ? "pluginJarUpload" : "modJarUpload"),
+    contentError =
+      selectionError(contentJars, false) ??
+      (contentJars.some((file) => !/\.jar$/i.test(file.name))
+        ? "uploadJarTypeError"
+        : null),
+    stepKeys: TranslationKey[] = [
+      "wizardEdition",
+      "wizardStyle",
+      "wizardVersion",
+      ...(supportsContent ? [contentStep] : []),
+      "wizardResources",
+      "wizardWorld",
+      "wizardEula",
+      "wizardReview",
+    ],
+    currentStep = stepKeys[step];
   const config: ServerConfig = {
     name: name || t("worldDefault"),
     edition,
@@ -114,7 +126,7 @@ export function Wizard({
         ));
       created.current = result;
       await client.invalidateQueries();
-      if (serverJar || files.length) {
+      if (serverJar || files.length || contentJars.length) {
         await waitForOperation(result.operation, result.server.id, setPhase);
         if (serverJar && !completedUploads.current.has("server")) {
           setPhase(t("uploadTransferring"));
@@ -135,7 +147,7 @@ export function Wizard({
         }
         if (files.length && !completedUploads.current.has("world")) {
           const kind =
-            style === "modpack" || worldKind === "pack"
+            worldKind === "pack"
               ? "modpack"
               : worldKind === "server"
                 ? "server"
@@ -156,6 +168,23 @@ export function Wizard({
             setPhase,
           );
           completedUploads.current.add("world");
+        }
+        // Import archives first so their content cannot overwrite this selection.
+        if (contentJars.length && !completedUploads.current.has("content")) {
+          setPhase(contentLabel);
+          setPercent(0);
+          const uploaded = await uploadSelection(
+            result.server.id,
+            "jar",
+            contentJars,
+            setPercent,
+          );
+          await waitForOperation(
+            uploaded.operation,
+            result.server.id,
+            setPhase,
+          );
+          completedUploads.current.add("content");
         }
       }
       return result;
@@ -183,28 +212,32 @@ export function Wizard({
     setWorldKind(value === "modpack" ? "pack" : "new");
     setServerSource(value === "custom" ? "upload" : "download");
     setServerJar(null);
+    setContentJars([]);
     setFiles([]);
     setFolderWorld(false);
   }
   const ready =
-    step === 2
+    currentStep === "wizardVersion"
       ? edition === "BEDROCK" ||
         (!!version && (serverSource !== "upload" || !!serverJar))
-      : step === 4
-        ? worldKind === "new" ||
-          (files.length > 0 && !selectionError(files, folderWorld))
-        : step === 5
-          ? eula
-          : step === 6
-            ? eula &&
-              !!(name || t("worldDefault")) &&
-              (serverSource !== "upload" ||
-                !!serverJar ||
-                completedUploads.current.has("server")) &&
-              (worldKind === "new" ||
-                completedUploads.current.has("world") ||
-                (files.length > 0 && !selectionError(files, folderWorld)))
-            : true;
+      : currentStep === contentStep
+        ? !contentError
+        : currentStep === "wizardWorld"
+          ? worldKind === "new" ||
+            (files.length > 0 && !selectionError(files, folderWorld))
+          : currentStep === "wizardEula"
+            ? eula
+            : currentStep === "wizardReview"
+              ? eula &&
+                !!(name || t("worldDefault")) &&
+                (serverSource !== "upload" ||
+                  !!serverJar ||
+                  completedUploads.current.has("server")) &&
+                (worldKind === "new" ||
+                  completedUploads.current.has("world") ||
+                  (files.length > 0 && !selectionError(files, folderWorld))) &&
+                (completedUploads.current.has("content") || !contentError)
+              : true;
   return (
     <MineModal
       open={open}
@@ -225,7 +258,7 @@ export function Wizard({
               <ArrowLeft size={17} />
               {t(step === 0 ? "cancel" : "back")}
             </MineButton>
-            {step < 6 ? (
+            {step < stepKeys.length - 1 ? (
               <MineButton disabled={!ready} onClick={() => setStep(step + 1)}>
                 {t("next")}
                 <ArrowRight size={17} />
@@ -268,7 +301,7 @@ export function Wizard({
       ) : (
         <>
           <h2 className="wizard-step-heading">{t(stepKeys[step]!)}</h2>
-          {step === 0 && (
+          {currentStep === "wizardEdition" && (
             <div className="choice-grid">
               <Choice
                 selected={edition === "JAVA"}
@@ -294,7 +327,7 @@ export function Wizard({
               />
             </div>
           )}
-          {step === 1 &&
+          {currentStep === "wizardStyle" &&
             (edition === "BEDROCK" ? (
               <MineNotice>{t("bedrockHint")}</MineNotice>
             ) : (
@@ -349,7 +382,7 @@ export function Wizard({
                 ))}
               </div>
             ))}
-          {step === 2 && (
+          {currentStep === "wizardVersion" && (
             <>
               <MineBadge tone="grass">{t("recommended")}</MineBadge>
               <label className="field">
@@ -384,6 +417,7 @@ export function Wizard({
                         const value = e.target
                           .value as ServerConfig["software"];
                         setSoftware(value);
+                        setContentJars([]);
                         if (value === "CUSTOM") setServerSource("upload");
                         setServerJar(null);
                       }}
@@ -483,7 +517,23 @@ export function Wizard({
               )}
             </>
           )}
-          {step === 3 && (
+          {currentStep === contentStep && (
+            <>
+              <MineNotice>
+                {t(plugins ? "pluginUploadHint" : "modUploadHint")}
+              </MineNotice>
+              <p className="muted">{t("wizardContentOptional")}</p>
+              <UploadPicker
+                files={contentJars}
+                onChange={setContentJars}
+                accept=".jar"
+                multiple
+                label={contentLabel}
+              />
+              {contentError && <MineNotice>{t(contentError)}</MineNotice>}
+            </>
+          )}
+          {currentStep === "wizardResources" && (
             <>
               <div className="choice-grid resources">
                 {(
@@ -544,7 +594,7 @@ export function Wizard({
               <MineNotice>{t("resourceWarning")}</MineNotice>
             </>
           )}
-          {step === 4 && (
+          {currentStep === "wizardWorld" && (
             <>
               <label className="field">
                 <span>{t("wizardWorld")}</span>
@@ -601,7 +651,7 @@ export function Wizard({
               )}
             </>
           )}
-          {step === 5 && (
+          {currentStep === "wizardEula" && (
             <div className="eula-book">
               <Asset name="book" size={60} />
               <p>{t("eulaText")}</p>
@@ -622,7 +672,7 @@ export function Wizard({
               </label>
             </div>
           )}
-          {step === 6 && (
+          {currentStep === "wizardReview" && (
             <>
               <MineInput
                 label={t("worldName")}
@@ -646,6 +696,14 @@ export function Wizard({
                         files[0]!.name
                       : t("newWorld"),
                   ],
+                  ...(contentJars.length
+                    ? [
+                        [
+                          contentLabel,
+                          contentJars.map((file) => file.name).join(", "),
+                        ],
+                      ]
+                    : []),
                   ...(serverJar
                     ? [[t("serverJarUpload"), serverJar.name]]
                     : []),
@@ -690,6 +748,18 @@ export function Wizard({
                     label={t(folderWorld ? "chooseFolder" : "chooseArchive")}
                   />
                 )}
+              {supportsContent && !completedUploads.current.has("content") && (
+                <>
+                  <UploadPicker
+                    files={contentJars}
+                    onChange={setContentJars}
+                    accept=".jar"
+                    multiple
+                    label={contentLabel}
+                  />
+                  {contentError && <MineNotice>{t(contentError)}</MineNotice>}
+                </>
+              )}
               <MineButton
                 variant="secondary"
                 onClick={() => {

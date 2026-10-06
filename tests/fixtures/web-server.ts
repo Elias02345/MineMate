@@ -13,6 +13,8 @@ const instance = await createApp({
     MINEMATE_HOST_DATA_PATH: root,
     MINEMATE_PORT: "8091",
     MINEMATE_DISABLE_GATEWAY: "true",
+    // E2E contexts supply distinct fixture client addresses for rate-limit isolation.
+    MINEMATE_TRUST_PROXY: "true",
     MINEMATE_LAN_IP: "192.168.1.50",
     MINEMATE_JAVA_PORT_START: "65000",
   }),

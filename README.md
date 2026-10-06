@@ -6,7 +6,7 @@ interface, guided setup, an inventory, configuration books and recovery chests.
 
 ![MineMate world overview](docs/screenshots/server.png)
 
-## Complete upload flows · 0.3.0
+## Complete upload flows · 0.3.1
 
 Dialogs keep their heading and action buttons visible while the form scrolls.
 Server controls, tabs, forms, inventory and file actions wrap at small widths;
@@ -15,7 +15,9 @@ long names fit mobile layouts and short laptop windows.
 Choose the server software and either automatic download or your own server JAR
 in the creation wizard. Forge and NeoForge use their installer JARs; directly
 executable JARs use the custom launch flow. Server software can also be uploaded
-later from Inventory. Upload multiple mod or plugin JARs separately in one batch.
+later from Inventory. The wizard now has a separate, optional bulk-upload step
+for mods (Fabric, Forge, NeoForge and Custom) or plugins (Paper and Purpur).
+Choose several JARs together, add more or remove individual files before creation.
 They are installed into `mods/` or `plugins/`, with a recovery point and rollback.
 Custom Java servers can also receive manual mod JARs.
 
@@ -48,14 +50,14 @@ Sound starts muted. OS reduced-motion preferences also stop decorative movement.
 Assets and fonts are served locally; see [the UI guide](docs/ADVENTURE_UI.md).
 
 To upgrade an existing installation, set
-`MINEMATE_IMAGE=ghcr.io/elias02345/minemate:0.3.0` and `MINEMATE_PORT=18080` in your
+`MINEMATE_IMAGE=ghcr.io/elias02345/minemate:0.3.1` and `MINEMATE_PORT=18080` in your
 existing `.env`, then run `docker compose pull` and `docker compose up -d --wait`.
 Keep your existing data directory and LAN settings. Open `http://HOST-IP:18080`.
 An older `.env` with `MINEMATE_PORT=8080` keeps that port until you change it.
 
-If the registry image is unavailable, the release also provides **ready-to-load
-amd64 and arm64 Docker image archives** with SHA-256 checksums. Load the matching
-archive, then run Compose. See [the image archive guide](docs/IMAGE_ARCHIVES.md).
+The older 0.3.0 release also provides Docker image archives for offline
+installation. Those archives do not include the 0.3.1 wizard fix. See
+[the image archive guide](docs/IMAGE_ARCHIVES.md).
 
 ## Install with Docker Compose
 
@@ -68,20 +70,17 @@ Download just the two configuration files from the release:
 ```sh
 mkdir minemate
 cd minemate
-curl -fL -o docker-compose.yml https://raw.githubusercontent.com/Elias02345/MineMate/docker-images-v0.3.0/docker-compose.yml
-curl -fL -o .env https://raw.githubusercontent.com/Elias02345/MineMate/docker-images-v0.3.0/default.env.example
+curl -fL -o docker-compose.yml https://github.com/Elias02345/MineMate/releases/download/v0.3.1/docker-compose.yml
+curl -fL -o .env https://github.com/Elias02345/MineMate/releases/download/v0.3.1/default.env.example
 ```
 
 Set **MINEMATE_LAN_IP** in `.env` to your Docker host's LAN address, then start:
-
-If registry publishing is still pending, first load the matching prebuilt image
-with [the archive installation guide](docs/IMAGE_ARCHIVES.md).
 
 ```sh
 docker compose up -d --wait
 ```
 
-Compose downloads **ghcr.io/elias02345/minemate:0.3.0**. You do not need Git, Node,
+Compose downloads **ghcr.io/elias02345/minemate:0.3.1**. You do not need Git, Node,
 source code or a local image build. The one-shot `prepare-data` service adjusts
 only the data directory's owner, then the non-root MineMate service starts. It
 reads the actual host bind path from Docker and verifies it with a sentinel.

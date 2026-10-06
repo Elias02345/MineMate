@@ -31,7 +31,7 @@ Internet. See [security](SECURITY.md).
 ## Install the published image
 
 Download `docker-compose.yml` and `default.env.example` from the
-[v0.3.0 release](https://github.com/Elias02345/MineMate/releases/tag/v0.3.0).
+[v0.3.1 release](https://github.com/Elias02345/MineMate/releases/tag/v0.3.1).
 Rename `default.env.example` to `.env` and set `MINEMATE_LAN_IP` to the Docker host's
 LAN address. These are the only files needed for deployment:
 
@@ -39,12 +39,12 @@ LAN address. These are the only files needed for deployment:
 docker compose up -d --wait
 ```
 
-Production Compose uses `ghcr.io/elias02345/minemate:0.3.0` and contains no build
+Production Compose uses `ghcr.io/elias02345/minemate:0.3.1` and contains no build
 context. Pulls are public and need no registry login. The release workflow verifies
 an anonymous pull before publishing its downloadable configuration files.
 
-Ready-to-load amd64 and arm64 image archives are also available in the 0.3.0
-release. See [the archive installation guide](IMAGE_ARCHIVES.md) for a verified
+Ready-to-load amd64 and arm64 image archives are available for the older 0.3.0
+release; they do not include the 0.3.1 wizard fix. See [the archive installation guide](IMAGE_ARCHIVES.md) for a verified
 `docker load` installation when the registry publishing service is delayed.
 
 `prepare-data` runs once without network access and changes only the root of the
