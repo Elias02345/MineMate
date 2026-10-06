@@ -79,13 +79,31 @@ export function registerConfigurationRoutes(context: RouteContext) {
             "deop",
             "whitelist",
             "unwhitelist",
+            "allowlist",
+            "unallowlist",
             "ban",
             "pardon",
           ]),
-          name: z.string().regex(/^[a-zA-Z0-9_ ]{1,32}$/),
+          name: z
+            .string()
+            .regex(/^[\p{L}\p{M}\p{N}_ #]{1,32}$/u)
+            .refine((value) => !!value.trim()),
           confirm: z.literal(true),
         })
         .parse(r.body);
+    if (s.config.edition === "JAVA" && !/^[a-zA-Z0-9_]{1,16}$/.test(c.name))
+      throw new AppError(
+        "PLAYER_NAME",
+        "Use a Java player name with 1–16 letters, digits or underscores.",
+      );
+    if (
+      s.config.edition === "JAVA" &&
+      ["allowlist", "unallowlist"].includes(c.action)
+    )
+      throw new AppError(
+        "CAPABILITY",
+        "Use Java whitelist actions for this server.",
+      );
     if (!s.containerId || s.state !== "RUNNING")
       throw new AppError("OFFLINE", "Start your world first.", 409);
     if (
@@ -94,14 +112,18 @@ export function registerConfigurationRoutes(context: RouteContext) {
     )
       throw new AppError(
         "CAPABILITY",
-        "Use Bedrock allowlist files for persistent access control.",
+        "Use Bedrock allowlist actions for persistent access control.",
       );
     const action =
         c.action === "whitelist"
           ? "whitelist add"
           : c.action === "unwhitelist"
             ? "whitelist remove"
-            : c.action,
+            : c.action === "allowlist"
+              ? "allowlist add"
+              : c.action === "unallowlist"
+                ? "allowlist remove"
+                : c.action,
       output = await servers.runtime.command(
         s.containerId,
         s.id,

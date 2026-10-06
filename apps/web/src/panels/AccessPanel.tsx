@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../api.ts";
@@ -50,6 +51,8 @@ export default function AccessPanel({ server: s }: { server: Server }) {
     <MinePanel>
       <h2>{t("permissions")}</h2>
       <p>{t("permissionHint")}</p>
+      <p>{t("shareAccessHint")}</p>
+      <Link to="/users">{t("manageMembers")}</Link>
       <label className="field">
         <span>{t("users")}</span>
         <select value={selected} onChange={(e) => setSelected(e.target.value)}>
@@ -63,17 +66,52 @@ export default function AccessPanel({ server: s }: { server: Server }) {
             ))}
         </select>
       </label>
+      <div className="button-row permission-presets">
+        <MineButton
+          variant="secondary"
+          disabled={!selected || action.isPending}
+          onClick={() => setGrants(["view"])}
+        >
+          {t("permissionViewer")}
+        </MineButton>
+        <MineButton
+          variant="secondary"
+          disabled={!selected || action.isPending}
+          onClick={() =>
+            setGrants([
+              "view",
+              "start",
+              "stop",
+              "restart",
+              "console",
+              "players",
+            ])
+          }
+        >
+          {t("permissionOperator")}
+        </MineButton>
+        <MineButton
+          variant="ghost"
+          disabled={!selected || action.isPending}
+          onClick={() => setGrants([])}
+        >
+          {t("permissionRevokeAll")}
+        </MineButton>
+      </div>
       <div className="permission-grid">
         {permissions.map((p) => (
           <label className="checkbox" key={p}>
             <input
               type="checkbox"
               checked={grants.includes(p)}
+              disabled={!selected || action.isPending}
               onChange={(e) =>
                 setGrants(
                   e.target.checked
-                    ? [...grants, p]
-                    : grants.filter((g) => g !== p),
+                    ? [...new Set<Permission>([...grants, "view", p])]
+                    : p === "view"
+                      ? []
+                      : grants.filter((g) => g !== p),
                 )
               }
             />

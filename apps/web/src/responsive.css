@@ -305,3 +305,52 @@ h3,
     padding-top: 20px;
   }
 }
+
+.console-action-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+  margin-top: 16px;
+}
+.console-shortcuts {
+  margin-top: 24px;
+}
+.player-access-lists {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 16px;
+  margin-top: 20px;
+}
+.player-access-list ul {
+  padding: 0;
+  list-style: none;
+}
+.player-access-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.player-access-list li b {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.share-invitation {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  margin: 12px 0;
+  resize: vertical;
+}
+.permission-presets {
+  margin: 16px 0;
+}
+@media (max-width: 580px) {
+  .console-action-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

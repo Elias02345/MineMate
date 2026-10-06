@@ -650,6 +650,99 @@ describe("world operations with a controlled Docker fixture", () => {
         .some((b) => b.reason === "before file upload"),
     ).toBe(true);
   });
+  it("routes Java whitelist actions, validates names and refuses Bedrock-only actions", async () => {
+    const command = vi
+      .spyOn(instance.servers.runtime, "command")
+      .mockResolvedValue("done");
+    const url = `/api/v1/servers/${server.id}/players`;
+    const added = await instance.app.inject({
+      method: "POST",
+      url,
+      headers,
+      payload: { action: "whitelist", name: "Friend_123", confirm: true },
+    });
+    expect(added.statusCode).toBe(200);
+    expect(command).toHaveBeenLastCalledWith(
+      server.containerId,
+      server.id,
+      server.config,
+      "whitelist add Friend_123",
+    );
+    const removed = await instance.app.inject({
+      method: "POST",
+      url,
+      headers,
+      payload: { action: "unwhitelist", name: "Friend_123", confirm: true },
+    });
+    expect(removed.statusCode).toBe(200);
+    expect(command).toHaveBeenLastCalledWith(
+      server.containerId,
+      server.id,
+      server.config,
+      "whitelist remove Friend_123",
+    );
+    for (const payload of [
+      { action: "whitelist", name: "Two Names", confirm: true },
+      { action: "allowlist", name: "Friend", confirm: true },
+      { action: "whitelist", name: "Friend", confirm: false },
+    ]) {
+      expect(
+        (await instance.app.inject({ method: "POST", url, headers, payload }))
+          .statusCode,
+      ).toBe(400);
+    }
+    expect(command).toHaveBeenCalledTimes(2);
+  });
+  it("quotes Bedrock gamertags for allowlist commands and refuses Java-only actions", async () => {
+    // This route-level fixture verifies edition-specific command construction,
+    // independently of an actual Bedrock runtime.
+    server.config = {
+      ...server.config,
+      edition: "BEDROCK",
+      software: "BEDROCK",
+    };
+    instance.store.saveServer(server);
+    const command = vi
+      .spyOn(instance.servers.runtime, "command")
+      .mockResolvedValue("queued");
+    const url = `/api/v1/servers/${server.id}/players`;
+    for (const name of ["Friend Name", "名前 #123"]) {
+      for (const [action, verb] of [
+        ["allowlist", "add"],
+        ["unallowlist", "remove"],
+      ]) {
+        expect(
+          (
+            await instance.app.inject({
+              method: "POST",
+              url,
+              headers,
+              payload: { action, name, confirm: true },
+            })
+          ).statusCode,
+        ).toBe(200);
+        expect(command).toHaveBeenLastCalledWith(
+          server.containerId,
+          server.id,
+          server.config,
+          `allowlist ${verb} ${JSON.stringify(name)}`,
+        );
+      }
+    }
+    for (const action of ["whitelist", "unwhitelist", "ban", "pardon"]) {
+      expect(
+        (
+          await instance.app.inject({
+            method: "POST",
+            url,
+            headers,
+            payload: { action, name: "Friend Name", confirm: true },
+          })
+        ).statusCode,
+      ).toBe(400);
+    }
+    expect(command).toHaveBeenCalledTimes(4);
+  });
   it("limits a view-only member to the explicitly shared world", async () => {
     await instance.app.inject({
       method: "POST",
@@ -680,7 +773,7 @@ describe("world operations with a controlled Docker fixture", () => {
         await instance.app.inject({ url: "/api/v1/servers", headers: member })
       ).json(),
     ).toHaveLength(1);
-    for (const route of ["files", "console", "permissions"])
+    for (const route of ["files", "console", "players", "permissions"])
       expect(
         (
           await instance.app.inject({

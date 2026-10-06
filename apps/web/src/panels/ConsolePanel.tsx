@@ -1,22 +1,26 @@
 import { useEffect, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { api } from "../api.ts";
-import { useI18n } from "../i18n.tsx";
-import { ErrorNotice, useAction } from "../hooks.tsx";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { api, mutate } from "../api.ts";
+import { useI18n, type TranslationKey } from "../i18n.tsx";
+import { ErrorNotice } from "../hooks.tsx";
 import {
   MinePanel,
   MineButton,
   MineInput,
+  MineNotice,
   Asset,
 } from "../../../../packages/ui/src/index.tsx";
+import { feedback } from "../../../../packages/ui/src/preferences.ts";
 import type { Server, Event } from "../../../../packages/shared/src/index.ts";
 export default function ConsolePanel({ server: s }: { server: Server }) {
   const { t } = useI18n(),
-    action = useAction(),
+    client = useQueryClient(),
     [lines, setLines] = useState<string[]>([]),
     [search, setSearch] = useState(""),
     [paused, setPaused] = useState(false),
     [command, setCommand] = useState(""),
+    [announcement, setAnnouncement] = useState(""),
+    [difficulty, setDifficulty] = useState("easy"),
     [scroll, setScroll] = useState(0),
     [history, setHistory] = useState<string[]>([]),
     [historyIndex, setHistoryIndex] = useState(-1),
@@ -43,10 +47,50 @@ export default function ConsolePanel({ server: s }: { server: Server }) {
     if (!paused && box.current)
       box.current.scrollTop = box.current.scrollHeight;
   }, [lines, paused]);
+  const action = useMutation({
+    mutationFn: (value: string) =>
+      mutate<{ output: string }>(`/servers/${s.id}/console`, {
+        command: value,
+      }),
+    onSuccess: (result, value) => {
+      feedback("success");
+      setLines((old) =>
+        [...old, `> ${value}`, ...result.output.split(/\r?\n/)].slice(-2000),
+      );
+      setHistory((old) =>
+        [value, ...old.filter((entry) => entry !== value)].slice(0, 100),
+      );
+      setHistoryIndex(-1);
+      setCommand((current) =>
+        current.trim().replace(/^\/+/, "") === value ? "" : current,
+      );
+      void client.invalidateQueries({ queryKey: ["players", s.id] });
+      void client.invalidateQueries({ queryKey: ["settings", s.id] });
+    },
+    onError: () => feedback("warning"),
+  });
+  const canSend = s.state === "RUNNING" && !action.isPending;
+  function send(value: string) {
+    const normalized = value.trim().replace(/^\/+/, "");
+    if (canSend && normalized) action.mutate(normalized);
+  }
+  const quickCommands: { label: TranslationKey; command: string }[] = [
+    { label: "commandList", command: "list" },
+    ...(s.config.edition === "JAVA"
+      ? [{ label: "commandSave" as const, command: "save-all flush" }]
+      : []),
+    { label: "commandDay", command: "time set day" },
+    { label: "commandNight", command: "time set night" },
+    { label: "commandClearWeather", command: "weather clear" },
+    { label: "commandRain", command: "weather rain" },
+  ];
   const filtered = lines.filter((line) =>
       line.toLowerCase().includes(search.toLowerCase()),
     ),
-    start = Math.max(0, Math.floor(scroll / 24) - 5),
+    start = Math.max(
+      0,
+      Math.min(filtered.length - 1, Math.floor(scroll / 24)) - 5,
+    ),
     visible = filtered.slice(start, start + 30);
   return (
     <MinePanel className="console-panel">
@@ -68,7 +112,11 @@ export default function ConsolePanel({ server: s }: { server: Server }) {
         label={t("logSearch")}
         type="search"
         value={search}
-        onChange={(e) => setSearch(e.target.value)}
+        onChange={(e) => {
+          setSearch(e.target.value);
+          setScroll(0);
+          if (box.current) box.current.scrollTop = 0;
+        }}
       />
       <div
         className="console-window"
@@ -117,25 +165,7 @@ export default function ConsolePanel({ server: s }: { server: Server }) {
         className="command-form"
         onSubmit={(e) => {
           e.preventDefault();
-          if (!command.trim()) return;
-          const value = command;
-          action.mutate(
-            { path: `/servers/${s.id}/console`, body: { command: value } },
-            {
-              onSuccess: (result) => {
-                setLines((old) =>
-                  [
-                    ...old,
-                    `> ${value}`,
-                    (result as { output: string }).output,
-                  ].slice(-2000),
-                );
-                setHistory((old) => [value, ...old].slice(0, 100));
-                setHistoryIndex(-1);
-                setCommand("");
-              },
-            },
-          );
+          send(command);
         }}
       >
         <span className="command-prompt">/</span>
@@ -165,6 +195,68 @@ export default function ConsolePanel({ server: s }: { server: Server }) {
           {t("send")}
         </MineButton>
       </form>
+      {s.state !== "RUNNING" && <MineNotice>{t("consoleOffline")}</MineNotice>}
+      <section className="console-shortcuts" aria-label={t("quickCommands")}>
+        <h3>{t("quickCommands")}</h3>
+        <div className="button-row">
+          {quickCommands.map((item) => (
+            <MineButton
+              key={item.command}
+              variant="secondary"
+              disabled={!canSend}
+              onClick={() => send(item.command)}
+              title={item.command}
+            >
+              {t(item.label)}
+            </MineButton>
+          ))}
+        </div>
+        <form
+          className="console-action-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            send(`difficulty ${difficulty}`);
+          }}
+        >
+          <label className="field">
+            <span>{t("difficulty")}</span>
+            <select
+              value={difficulty}
+              onChange={(event) => setDifficulty(event.target.value)}
+            >
+              {["peaceful", "easy", "normal", "hard"].map((value) => (
+                <option key={value} value={value}>
+                  {t(value as TranslationKey)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <MineButton type="submit" variant="secondary" disabled={!canSend}>
+            {t("applyDifficulty")}
+          </MineButton>
+        </form>
+        <form
+          className="console-action-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            send(`say ${announcement.trim()}`);
+          }}
+        >
+          <MineInput
+            label={t("announcement")}
+            value={announcement}
+            maxLength={2000}
+            onChange={(event) => setAnnouncement(event.target.value)}
+          />
+          <MineButton
+            type="submit"
+            variant="secondary"
+            disabled={!canSend || !announcement.trim()}
+          >
+            {t("broadcast")}
+          </MineButton>
+        </form>
+      </section>
       <p className="muted">{t("technicalOnly")}</p>
       <ErrorNotice error={q.error ?? action.error} />
     </MinePanel>

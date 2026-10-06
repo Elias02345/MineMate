@@ -37,23 +37,62 @@ export const bytes = (value: number | null | undefined) =>
         : value >= 1024
           ? `${Math.round(value / 1024)} KB`
           : `${value} B`;
-export function CopyButton({ value }: { value: string }) {
+export function CopyButton({
+  value,
+  label,
+}: {
+  value: string;
+  label?: string;
+}) {
   const { t } = useI18n(),
-    [copied, setCopied] = useState(false);
-  return (
-    <button
-      className="copy-button"
-      aria-label={t("copy")}
-      onClick={() =>
-        void navigator.clipboard.writeText(value).then(() => {
-          setCopied(true);
-          setTimeout(() => setCopied(false), 1800);
-        })
+    [copied, setCopied] = useState(false),
+    [failed, setFailed] = useState(false);
+  async function copy() {
+    setFailed(false);
+    try {
+      let success = false;
+      if (navigator.clipboard?.writeText) {
+        try {
+          await navigator.clipboard.writeText(value);
+          success = true;
+        } catch {
+          /* HTTP LAN deployments use the selection fallback. */
+        }
       }
-    >
-      {copied ? <Check size={16} /> : <Copy size={16} />}
-      <span>{t(copied ? "copied" : "copy")}</span>
-    </button>
+      if (!success) {
+        const previous = document.activeElement,
+          field = document.createElement("textarea");
+        field.value = value;
+        field.style.position = "fixed";
+        field.style.opacity = "0";
+        document.body.append(field);
+        try {
+          field.select();
+          success = document.execCommand("copy");
+        } finally {
+          field.remove();
+          if (previous instanceof HTMLElement) previous.focus();
+        }
+      }
+      if (!success) throw new Error("Copy unavailable");
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      setFailed(true);
+    }
+  }
+  return (
+    <>
+      <button
+        className="copy-button"
+        aria-label={label ?? t("copy")}
+        onClick={() => void copy()}
+      >
+        {copied ? <Check size={16} /> : <Copy size={16} />}
+        <span>{copied ? t("copied") : (label ?? t("copy"))}</span>
+      </button>
+      {failed && <span role="status">{t("copyManually")}</span>}
+    </>
   );
 }
 export function Dashboard() {

@@ -116,10 +116,33 @@ export class FixtureDocker implements DockerProvider {
   async logs(id: string) {
     return this.containers.get(id)!.logs;
   }
-  async exec(_id: string, args: string[]) {
-    return args[1] === "list"
-      ? "There are 0 of a max of 20 players online:"
-      : "Command received by controlled test runtime";
+  async exec(id: string, args: string[]) {
+    const container = this.containers.get(id)!,
+      command = args[1] ?? "";
+    const output =
+      command === "list"
+        ? "There are 0 of a max of 20 players online:"
+        : "Command received by controlled test runtime";
+    // Only the controlled browser/API fixture models list persistence; this is
+    // never part of a production Minecraft runtime.
+    const match = /^(whitelist|allowlist) (add|remove) (.+)$/.exec(command);
+    if (match) {
+      const name = match[3]!.startsWith('"')
+        ? (JSON.parse(match[3]!) as string)
+        : match[3]!;
+      const directory = container.spec.HostConfig.Binds![0]!.split(":")[0]!;
+      const file = path.join(directory, match[1] + ".json");
+      const list = await readFile(file, "utf8")
+        .then((text) => JSON.parse(text) as { name: string }[])
+        .catch(() => []);
+      const retained = list.filter((entry) => entry.name !== name);
+      await writeFile(
+        file,
+        JSON.stringify(match[2] === "add" ? [...retained, { name }] : retained),
+      );
+    }
+    container.logs += `> ${command}\n${output}\n`;
+    return output;
   }
   async stats(id: string): Promise<DockerStats> {
     return {

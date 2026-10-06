@@ -4,12 +4,20 @@ import {
   MinePanel,
   MineBadge,
   MineNotice,
+  MineButton,
   Asset,
 } from "../../../../packages/ui/src/index.tsx";
 import type { Server } from "../../../../packages/shared/src/index.ts";
-export default function NetworkPanel({ server: s }: { server: Server }) {
+export default function NetworkPanel({
+  server: s,
+  onManageAccess,
+}: {
+  server: Server;
+  onManageAccess?: () => void;
+}) {
   const { t } = useI18n(),
     endpoint = `${s.endpoint.host}:${s.port}`,
+    invitation = `${s.name}\nMinecraft ${s.config.edition === "JAVA" ? "Java" : "Bedrock"} · ${s.config.version}\n${t("hostAddress")}: ${s.endpoint.host}\n${t("port")}: ${s.port}\n${t("lanHint")}`,
     target = `Host: ${s.endpoint.host}\nPort: ${s.port}\nProtocol: ${s.endpoint.protocol}`;
   return (
     <div className="network-layout">
@@ -29,6 +37,23 @@ export default function NetworkPanel({ server: s }: { server: Server }) {
           {s.config.edition === "JAVA" ? "Java" : "Bedrock"} ·{" "}
           {s.endpoint.protocol}
         </MineBadge>
+        <h3>{t("inviteText")}</h3>
+        <textarea
+          className="share-invitation"
+          aria-label={t("inviteText")}
+          value={invitation}
+          rows={6}
+          readOnly
+        />
+        <CopyButton value={invitation} label={t("copyInvitation")} />
+        {onManageAccess && (
+          <>
+            <p>{t("shareAccessHint")}</p>
+            <MineButton variant="secondary" onClick={onManageAccess}>
+              {t("managementAccess")}
+            </MineButton>
+          </>
+        )}
       </MinePanel>
       <MinePanel className="cloudgate-panel">
         <Asset name="portal" size={50} />

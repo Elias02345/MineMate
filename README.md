@@ -6,6 +6,24 @@ interface, guided setup, an inventory, configuration books and recovery chests.
 
 ![MineMate world overview](docs/screenshots/server.png)
 
+## Console, players and sharing · 0.4.0
+
+Open a world and use its browser console for live logs and commands. Common
+commands have buttons for player lists, saving, day/night, weather and difficulty;
+broadcast a message through a form. Search logs and recall commands with the
+arrow keys. Controls are disabled while the server is offline.
+
+Players now shows a graphical whitelist/allowlist, operators and bans with
+removal actions. A switch saves the guest-list setting with a recovery point
+and restart of an online server. Bedrock allowlist actions support gamertags
+containing spaces.
+
+Play together provides a copyable Minecraft invitation and a visible link to
+management sharing. World permissions no longer requires advanced mode; choose
+a member, use view/operator presets or individual permissions, and save or revoke
+access. Clipboard copying also works on ordinary HTTP LAN deployments. See
+[the management guide](docs/ADMINISTRATION.md).
+
 ## Complete upload flows · 0.3.1
 
 Dialogs keep their heading and action buttons visible while the form scrolls.
@@ -50,13 +68,13 @@ Sound starts muted. OS reduced-motion preferences also stop decorative movement.
 Assets and fonts are served locally; see [the UI guide](docs/ADVENTURE_UI.md).
 
 To upgrade an existing installation, set
-`MINEMATE_IMAGE=ghcr.io/elias02345/minemate:0.3.1` and `MINEMATE_PORT=18080` in your
+`MINEMATE_IMAGE=ghcr.io/elias02345/minemate:0.4.0` and `MINEMATE_PORT=18080` in your
 existing `.env`, then run `docker compose pull` and `docker compose up -d --wait`.
 Keep your existing data directory and LAN settings. Open `http://HOST-IP:18080`.
 An older `.env` with `MINEMATE_PORT=8080` keeps that port until you change it.
 
 The older 0.3.0 release also provides Docker image archives for offline
-installation. Those archives do not include the 0.3.1 wizard fix. See
+installation. Those archives do not include the wizard fix or the new management controls. See
 [the image archive guide](docs/IMAGE_ARCHIVES.md).
 
 ## Install with Docker Compose
@@ -70,8 +88,8 @@ Download just the two configuration files from the release:
 ```sh
 mkdir minemate
 cd minemate
-curl -fL -o docker-compose.yml https://github.com/Elias02345/MineMate/releases/download/v0.3.1/docker-compose.yml
-curl -fL -o .env https://github.com/Elias02345/MineMate/releases/download/v0.3.1/default.env.example
+curl -fL -o docker-compose.yml https://github.com/Elias02345/MineMate/releases/download/v0.4.0/docker-compose.yml
+curl -fL -o .env https://github.com/Elias02345/MineMate/releases/download/v0.4.0/default.env.example
 ```
 
 Set **MINEMATE_LAN_IP** in `.env` to your Docker host's LAN address, then start:
@@ -80,7 +98,7 @@ Set **MINEMATE_LAN_IP** in `.env` to your Docker host's LAN address, then start:
 docker compose up -d --wait
 ```
 
-Compose downloads **ghcr.io/elias02345/minemate:0.3.1**. You do not need Git, Node,
+Compose downloads **ghcr.io/elias02345/minemate:0.4.0**. You do not need Git, Node,
 source code or a local image build. The one-shot `prepare-data` service adjusts
 only the data directory's owner, then the non-root MineMate service starts. It
 reads the actual host bind path from Docker and verifies it with a sentinel.

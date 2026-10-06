@@ -12,6 +12,37 @@ byte-for-byte public release download checks and the full production Compose
 smoke against that published amd64 image also pass. GitHub names the environment
 asset `default.env.example`; download it as `.env`.
 
+## Console, players and sharing (0.4.0)
+
+On 2026-10-06, strict TypeScript, lint, all 65 unit/API checks and production
+builds pass. Two added route-level tests verify Java player-name and whitelist
+validation, Bedrock allowlist commands with quoted spaces/international names,
+edition restrictions and explicit confirmation. Existing permission coverage
+also denies player-list reads to a view-only member.
+
+The production 0.4.0 Docker image builds and passes a fresh Compose smoke for
+non-root/read-only startup, automatic data ownership/bind discovery, socket proxy
+and owner/session persistence after recreation. All 16 browser tests pass. The new browser flows exercise console shortcuts, difficulty, announcements,
+slash-prefixed free commands/history, graphical Java whitelist add/remove and
+its persisted setting after a backed-up restart. Sharing coverage creates a
+member through the UI, grants the management preset, signs in separately to use
+the console, verifies settings/grant controls remain inaccessible, revokes
+access and verifies API denial and disappearance from the dashboard. Invitation
+copying also exercises the fallback used when the secure clipboard API is
+absent on a normal HTTP LAN deployment. The existing viewport checks cover the
+expanded console, player lists and visible permission controls.
+
+Console commands and player actions still use the owned Minecraft runtime, with
+authentication and per-world permission checks. New Bedrock allowlist routing is
+verified at the API boundary; no new live Bedrock account-service test or game
+client join was performed. Live runtime coverage below remains the earlier
+0.3.0 validation. Production UI host port remains 18080, with container port 8080.
+
+The complete [0.3.1 release workflow](https://github.com/Elias02345/MineMate/actions/runs/37440272376)
+passes all checks, native amd64/arm64 image publication and public configuration
+verification. An independent anonymous cloud pull of `0.3.1` also passes. That
+release contains the wizard fix; the 0.4.0 management controls are added separately.
+
 ## Creation wizard mod uploads (0.3.1)
 
 On 2026-10-06, strict TypeScript, lint, all 63 unit/API checks and production

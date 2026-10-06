@@ -69,7 +69,6 @@ export function ServerPage() {
         id: "permissions",
         key: "permissions",
         permission: "settings",
-        advanced: true,
       },
     ];
   const busy = [
@@ -182,8 +181,7 @@ export function ServerPage() {
             checked={advanced}
             onChange={(e) => {
               setAdvanced(e.target.checked);
-              if (!e.target.checked && ["files", "permissions"].includes(tab))
-                setTab("overview");
+              if (!e.target.checked && tab === "files") setTab("overview");
             }}
           />
           {t("advanced")}
@@ -206,7 +204,16 @@ export function ServerPage() {
           {tab === "content" && <ContentPanel server={s} />}{" "}
           {tab === "backups" && <BackupPanel server={s} />}{" "}
           {tab === "updates" && <UpdatePanel server={s} advanced={advanced} />}{" "}
-          {tab === "network" && <NetworkPanel server={s} />}{" "}
+          {tab === "network" && (
+            <NetworkPanel
+              server={s}
+              onManageAccess={
+                user.role !== "member" && s.permissions.includes("settings")
+                  ? () => setTab("permissions")
+                  : undefined
+              }
+            />
+          )}{" "}
           {tab === "files" && <FilePanel server={s} />}{" "}
           {tab === "permissions" && <AccessPanel server={s} />}
         </Suspense>
