@@ -12,6 +12,30 @@ byte-for-byte public release download checks and the full production Compose
 smoke against that published amd64 image also pass. GitHub names the environment
 asset `default.env.example`; download it as `.env`.
 
+## Resumable multi-GB uploads (0.4.2)
+
+On 2026-10-06, strict TypeScript, lint, 72 unit/API checks and production builds
+pass. A checked upload session accepts 464 separately acknowledged files without
+the previous 300-request/minute route limit; an interrupted chunk resumes from
+its stored offset, a checksum mismatch is rejected, and an unchanged finished
+session returns the same installation operation. A separate large-file run
+transferred and verified 513 MiB in 513 one-MiB requests, beyond the old
+512-MiB per-file browser cap. The browser test deliberately breaks one chunk
+request and verifies automatic retry and successful mod installation.
+All 17 browser tests pass, including the NeoForge wizard's 201-mod upload and
+121 later mods, the 201-plugin Paper wizard, and native world-folder import.
+A Modrinth `.mrpack` also installs through the session path, applying server
+overrides while excluding client overrides.
+
+The browser transfers every file before validating archives/JARs and then
+starts one recovery-protected installation. Per-chunk and whole-file SHA-256
+checks catch both connection errors and mixed content after reselection.
+Sessions survive browser reload or server restart, and stale sessions expire
+after 48 hours. Multi-GB archives remain subject to the 20-GiB aggregate and
+archive expansion guards. The local 0.4.2 Docker image builds and passes the
+production Compose smoke with host port 18080, non-root service, socket proxy,
+host bind proof and persistent login after recreation.
+
 ## Large upload batches (0.4.1)
 
 On 2026-10-06, strict TypeScript, lint, all 69 unit/API checks and production

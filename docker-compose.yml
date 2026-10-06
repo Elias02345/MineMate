@@ -12,7 +12,7 @@ services:
     cap_add: [CHOWN]
     security_opt: [no-new-privileges:true]
   minemate:
-    image: ${MINEMATE_IMAGE:-ghcr.io/elias02345/minemate:0.4.1}
+    image: ${MINEMATE_IMAGE:-ghcr.io/elias02345/minemate:0.4.2}
     init: true
     restart: unless-stopped
     environment:
@@ -22,7 +22,7 @@ services:
       MINEMATE_LAN_IP: ${MINEMATE_LAN_IP:?Set your Docker host LAN address in .env}
       MINEMATE_DOCKER_ENDPOINT: http://socket-proxy:2375
       MINEMATE_SERVER_NETWORK: ${MINEMATE_SERVER_NETWORK:-minemate-servers}
-      MINEMATE_RUNTIME_IMAGE: ${MINEMATE_IMAGE:-ghcr.io/elias02345/minemate:0.4.1}
+      MINEMATE_RUNTIME_IMAGE: ${MINEMATE_IMAGE:-ghcr.io/elias02345/minemate:0.4.2}
       MINEMATE_JAVA_PORT_START: ${MINEMATE_JAVA_PORT_START:-25565}
       MINEMATE_JAVA_PORT_END: ${MINEMATE_JAVA_PORT_END:-65535}
       MINEMATE_BEDROCK_PORT_START: ${MINEMATE_BEDROCK_PORT_START:-19132}

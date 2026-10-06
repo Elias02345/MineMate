@@ -63,8 +63,8 @@ const messages = {
   ],
   uploadTransferring: ["Transferring files", "Dateien übertragen"],
   uploadSizeError: [
-    "The limit is 512 MB per file and 20 GB in total. Use a ZIP for a larger world folder.",
-    "Das Limit beträgt 512 MB pro Datei und 20 GB insgesamt. Größere Weltordner als ZIP hochladen.",
+    "The upload limit is 20 GB in total. Large archives are sent in resumable parts.",
+    "Das Upload-Limit beträgt insgesamt 20 GB. Große Archive werden in fortsetzbaren Abschnitten übertragen.",
   ],
   uploadDuplicateError: [
     "Two selected files have the same name. Remove the duplicate before uploading.",

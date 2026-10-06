@@ -10,6 +10,7 @@ import {
 } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import { createApp, type MineMateApp } from "../apps/api/src/app.ts";
 import { loadConfig } from "../apps/api/src/config.ts";
 import { FixtureDocker } from "./fixtures/docker.ts";
@@ -172,6 +173,301 @@ describe("world operations with a controlled Docker fixture", () => {
       await readdir(instance.servers.paths.server(server.id, "uploads")),
     ).toEqual([]);
     expect(instance.store.backups(server.id)).toHaveLength(1);
+  });
+  it("resumes checked chunks and installs a validated mod batch exactly once", async () => {
+    const jar = await archive({
+      "fabric.mod.json": '{"id":"fixture"}',
+      "example/Mod.class": "fixture",
+    });
+    const base = `/api/v1/servers/${server.id}/upload-sessions`;
+    const created = await instance.app.inject({
+      method: "POST",
+      url: base,
+      headers,
+      payload: {
+        kind: "jar",
+        confirm: true,
+        files: ["one.jar", "two.jar"].map((name) => ({
+          name,
+          size: jar.length,
+        })),
+      },
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const id = created.json().id as string;
+    const part = jar.subarray(0, Math.floor(jar.length / 2));
+    const send = (
+      index: number,
+      offset: number,
+      bytes: Buffer,
+      hash = createHash("sha256").update(bytes).digest("hex"),
+    ) =>
+      instance.app.inject({
+        method: "PUT",
+        url: `${base}/${id}/files/${index}`,
+        headers: {
+          ...headers,
+          "content-type": "application/octet-stream",
+          "x-upload-offset": String(offset),
+          "x-upload-sha256": hash,
+        },
+        payload: bytes,
+      });
+    const bad = await send(0, 0, part, "0".repeat(64));
+    expect(bad.statusCode).toBe(422);
+    expect(
+      (
+        await instance.app.inject({
+          method: "GET",
+          url: `${base}/${id}`,
+          headers,
+        })
+      ).json().files[0].offset,
+    ).toBe(0);
+    expect((await send(0, 0, part)).statusCode).toBe(200);
+    expect((await send(0, 0, part)).statusCode).toBe(409);
+    expect(
+      (
+        await instance.app.inject({
+          method: "GET",
+          url: `${base}/${id}`,
+          headers,
+        })
+      ).json().files[0].offset,
+    ).toBe(part.length);
+    expect(
+      (await send(0, part.length, jar.subarray(part.length))).statusCode,
+    ).toBe(200);
+    expect((await send(1, 0, jar)).statusCode).toBe(200);
+    const mismatched = await instance.app.inject({
+      method: "POST",
+      url: `${base}/${id}/files/0/validate`,
+      headers,
+      payload: { sha256: "0".repeat(64) },
+    });
+    expect(mismatched.statusCode).toBe(422);
+    expect(
+      (
+        await instance.app.inject({
+          method: "POST",
+          url: `${base}/${id}/files/0/reset`,
+          headers,
+          payload: {},
+        })
+      ).statusCode,
+    ).toBe(200);
+    expect((await send(0, 0, jar)).statusCode).toBe(200);
+    for (const index of [0, 1]) {
+      const validated = await instance.app.inject({
+        method: "POST",
+        url: `${base}/${id}/files/${index}/validate`,
+        headers,
+        payload: { sha256: createHash("sha256").update(jar).digest("hex") },
+      });
+      expect(validated.statusCode, validated.body).toBe(200);
+    }
+    const completed = await instance.app.inject({
+      method: "POST",
+      url: `${base}/${id}/finish`,
+      headers,
+      payload: {},
+    });
+    expect(completed.statusCode, completed.body).toBe(202);
+    expect((await finish(completed.json().operation.id)).status).toBe(
+      "SUCCEEDED",
+    );
+    const repeated = await instance.app.inject({
+      method: "POST",
+      url: `${base}/${id}/finish`,
+      headers,
+      payload: {},
+    });
+    expect(repeated.json().operation.id).toBe(completed.json().operation.id);
+    expect(instance.store.backups(server.id)).toHaveLength(1);
+    expect(
+      await readFile(
+        path.join(instance.servers.paths.server(server.id), "mods/one.jar"),
+      ),
+    ).toEqual(jar);
+  });
+  it("accepts 464 separately acknowledged files without a per-minute request cap", async () => {
+    const base = `/api/v1/servers/${server.id}/upload-sessions`;
+    const files = Array.from({ length: 464 }, (_, i) => ({
+      name: `batch-${i}.txt`,
+      size: 1,
+    }));
+    const created = await instance.app.inject({
+      method: "POST",
+      url: base,
+      headers,
+      payload: { kind: "file", confirm: true, files },
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const id = created.json().id as string;
+    const bytes = Buffer.from("x");
+    const hash = createHash("sha256").update(bytes).digest("hex");
+    for (let i = 0; i < files.length; i++) {
+      const part = await instance.app.inject({
+        method: "PUT",
+        url: `${base}/${id}/files/${i}`,
+        headers: {
+          ...headers,
+          "content-type": "application/octet-stream",
+          "x-upload-offset": "0",
+          "x-upload-sha256": hash,
+        },
+        payload: bytes,
+      });
+      expect(part.statusCode, `chunk ${i}: ${part.body}`).toBe(200);
+      const validated = await instance.app.inject({
+        method: "POST",
+        url: `${base}/${id}/files/${i}/validate`,
+        headers,
+        payload: { sha256: hash },
+      });
+      expect(validated.statusCode, `file ${i}: ${validated.body}`).toBe(200);
+    }
+    const completed = await instance.app.inject({
+      method: "POST",
+      url: `${base}/${id}/finish`,
+      headers,
+      payload: {},
+    });
+    expect(completed.statusCode, completed.body).toBe(202);
+    expect((await finish(completed.json().operation.id)).status).toBe(
+      "SUCCEEDED",
+    );
+    expect(
+      await readFile(
+        path.join(instance.servers.paths.server(server.id), "batch-463.txt"),
+        "utf8",
+      ),
+    ).toBe("x");
+    expect(instance.store.backups(server.id)).toHaveLength(1);
+  });
+  it.skipIf(!process.env.RUN_LARGE_UPLOAD_TEST)(
+    "streams and verifies a file larger than the old 512 MiB limit",
+    async () => {
+      const base = `/api/v1/servers/${server.id}/upload-sessions`;
+      const chunk = Buffer.alloc(1024 * 1024, 0x5a);
+      const chunkHash = createHash("sha256").update(chunk).digest("hex");
+      const full = createHash("sha256");
+      const count = 513;
+      const created = await instance.app.inject({
+        method: "POST",
+        url: base,
+        headers,
+        payload: {
+          kind: "file",
+          confirm: true,
+          files: [{ name: "large.dat", size: count * chunk.length }],
+        },
+      });
+      expect(created.statusCode, created.body).toBe(201);
+      const id = created.json().id as string;
+      for (let i = 0; i < count; i++) {
+        const part = await instance.app.inject({
+          method: "PUT",
+          url: `${base}/${id}/files/0`,
+          headers: {
+            ...headers,
+            "content-type": "application/octet-stream",
+            "x-upload-offset": String(i * chunk.length),
+            "x-upload-sha256": chunkHash,
+          },
+          payload: chunk,
+        });
+        expect(part.statusCode, `part ${i}: ${part.body}`).toBe(200);
+        full.update(chunk);
+      }
+      const resumed = await instance.app.inject({
+        method: "GET",
+        url: `${base}/${id}`,
+        headers,
+      });
+      expect(resumed.json().files[0].offset).toBe(count * chunk.length);
+      const checked = await instance.app.inject({
+        method: "POST",
+        url: `${base}/${id}/files/0/validate`,
+        headers,
+        payload: { sha256: full.digest("hex") },
+      });
+      expect(checked.statusCode, checked.body).toBe(200);
+      expect(
+        (
+          await instance.app.inject({
+            method: "DELETE",
+            url: `${base}/${id}`,
+            headers,
+          })
+        ).statusCode,
+      ).toBe(200);
+    },
+  );
+  it("imports a Modrinth server pack through the resumable archive path", async () => {
+    const pack = await archive({
+      "modrinth.index.json": JSON.stringify({
+        formatVersion: 1,
+        game: "minecraft",
+        dependencies: { minecraft: "1.21.1", "fabric-loader": "0.16.0" },
+        files: [],
+      }),
+      "server-overrides/config/pack.toml": "enabled = true\n",
+      "client-overrides/config/client.toml": "client only\n",
+    });
+    const base = `/api/v1/servers/${server.id}/upload-sessions`;
+    const created = await instance.app.inject({
+      method: "POST",
+      url: base,
+      headers,
+      payload: {
+        kind: "modpack",
+        confirm: true,
+        files: [{ name: "server.mrpack", size: pack.length }],
+      },
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const id = created.json().id as string;
+    const hash = createHash("sha256").update(pack).digest("hex");
+    const part = await instance.app.inject({
+      method: "PUT",
+      url: `${base}/${id}/files/0`,
+      headers: {
+        ...headers,
+        "content-type": "application/octet-stream",
+        "x-upload-offset": "0",
+        "x-upload-sha256": hash,
+      },
+      payload: pack,
+    });
+    expect(part.statusCode, part.body).toBe(200);
+    const validated = await instance.app.inject({
+      method: "POST",
+      url: `${base}/${id}/files/0/validate`,
+      headers,
+      payload: { sha256: hash },
+    });
+    expect(validated.statusCode, validated.body).toBe(200);
+    const completed = await instance.app.inject({
+      method: "POST",
+      url: `${base}/${id}/finish`,
+      headers,
+      payload: {},
+    });
+    expect(completed.statusCode, completed.body).toBe(202);
+    const op = await finish(completed.json().operation.id);
+    expect(op.status, op.error ?? undefined).toBe("SUCCEEDED");
+    expect(
+      await readFile(
+        path.join(instance.servers.paths.server(server.id), "config/pack.toml"),
+        "utf8",
+      ),
+    ).toBe("enabled = true\n");
+    expect(
+      await readdir(
+        path.join(instance.servers.paths.server(server.id), "config"),
+      ),
+    ).not.toContain("client.toml");
   });
   it("rejects a whole invalid or duplicate JAR batch before stopping the server", async () => {
     const jar = await archive({ "example/Mod.class": "fixture" });

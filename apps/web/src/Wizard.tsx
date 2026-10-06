@@ -137,6 +137,8 @@ export function Wizard({
             [serverJar],
             setPercent,
             software,
+            "",
+            setPhase,
           );
           await waitForOperation(
             uploaded.operation,
@@ -161,6 +163,9 @@ export function Wizard({
             kind,
             files,
             setPercent,
+            undefined,
+            "",
+            setPhase,
           );
           await waitForOperation(
             uploaded.operation,
@@ -178,6 +183,9 @@ export function Wizard({
             "jar",
             contentJars,
             setPercent,
+            undefined,
+            "",
+            setPhase,
           );
           await waitForOperation(
             uploaded.operation,

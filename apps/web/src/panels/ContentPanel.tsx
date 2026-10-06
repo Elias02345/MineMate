@@ -370,6 +370,7 @@ export function UploadDialog({
         setPercent,
         kind === "custom" ? software : undefined,
         directory,
+        setPhase,
       );
       await waitForOperation(result.operation, s.id, setPhase);
       return result;

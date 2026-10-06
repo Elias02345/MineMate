@@ -25,11 +25,21 @@ export async function api<T>(
       ...options.headers,
     },
   });
-  const result = (await response.json()) as T & {
+  let result: T & {
     code?: string;
     message?: string;
     detail?: string;
   };
+  try {
+    result = (await response.json()) as typeof result;
+  } catch {
+    throw new ApiError(
+      "UPLOAD_RESPONSE",
+      response.status === 413
+        ? "A reverse proxy rejected the upload chunk. Allow request bodies of at least 2 MB."
+        : `The server returned an unreadable response (HTTP ${response.status}). Check the reverse proxy and try again.`,
+    );
+  }
   if (!response.ok)
     throw new ApiError(
       result.code ?? "REQUEST",

@@ -21,9 +21,9 @@ as an additional snapshot.
 Archive validation rejects absolute/traversal paths, Windows paths, duplicate
 paths, symlinks, devices, encrypted entries, excessive compression ratios,
 more than 100,000 entries, more than 20 GB expanded data, or a member exceeding
-4 GB. Limits also apply while extracting. Upload requests are capped at 512 MB
-per archive. These conservative limits may require splitting unusually large
-worlds before import.
+4 GB. Limits also apply while extracting. Browser uploads use checked 1 MiB
+requests and allow up to 20 GiB total, including a multi-GB archive. An
+individual expanded archive member remains limited to 4 GiB.
 
 Retention combines the last N backups, daily and weekly points, and an optional
 byte budget. At least the newest point is retained. An active restore target is

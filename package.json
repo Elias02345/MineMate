@@ -1,6 +1,6 @@
 {
   "name": "minemate",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "private": true,
   "type": "module",
   "engines": {
@@ -33,6 +33,7 @@
     "@fastify/rate-limit": "11.2.0",
     "@fastify/static": "10.1.5",
     "@fastify/websocket": "11.3.3",
+    "@noble/hashes": "2.4.0",
     "@radix-ui/react-dialog": "1.1.23",
     "@tanstack/react-query": "5.104.1",
     "@tanstack/react-router": "1.170.41",

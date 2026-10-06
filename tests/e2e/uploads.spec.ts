@@ -179,7 +179,7 @@ test("creates NeoForge with 201 wizard mods and adds 121 mods from Inventory", a
   await page.getByRole("button", { name: "Craft this world" }).click();
   await expect(
     page.getByRole("heading", { name: "Uploaded NeoForge", exact: true }),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 30000 });
   const serverId = page.url().split("/").at(-1)!;
   const server = (await (
     await page.request.get(`/api/v1/servers/${serverId}`)
@@ -232,13 +232,11 @@ test("custom JAR, world and bulk mods retry only the failed batch without duplic
   await login(page);
   const requests: string[] = [];
   page.on("request", (request) => {
-    if (
-      request.method() === "POST" &&
-      /\/api\/v1\/servers(?:$|\/[^/]+\/uploads\?)/.test(request.url())
-    )
-      requests.push(
-        new URL(request.url()).searchParams.get("kind") ?? "create",
-      );
+    if (request.method() !== "POST") return;
+    const pathname = new URL(request.url()).pathname;
+    if (pathname === "/api/v1/servers") requests.push("create");
+    else if (/\/api\/v1\/servers\/[^/]+\/upload-sessions$/.test(pathname))
+      requests.push((request.postDataJSON() as { kind: string }).kind);
   });
   await page
     .getByRole("button", { name: "Create a world", exact: true })
@@ -427,7 +425,7 @@ test("Paper creation installs 201 plugins into plugins", async ({ page }) => {
   await page.getByRole("button", { name: "Craft this world" }).click();
   await expect(
     page.getByRole("heading", { name: "Wizard plugins", exact: true }),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 30000 });
   const serverId = page.url().split("/").at(-1)!;
   const content = (await (
     await page.request.get(`/api/v1/servers/${serverId}/content`)
@@ -436,6 +434,40 @@ test("Paper creation installs 201 plugins into plugins", async ({ page }) => {
   expect(content.map((item) => item.filename)).toContain(
     "plugins/plugin-200.jar",
   );
+});
+
+test("browser resumes a mod upload after a broken chunk request", async ({
+  page,
+}) => {
+  await login(page);
+  const server = await makeServer(page, "Resumable mods");
+  await page.goto(`/servers/${server.id}`);
+  await page.getByRole("tab", { name: "Inventory", exact: true }).click();
+  let attempts = 0;
+  await page.route("**/upload-sessions/*/files/0", async (route) => {
+    if (route.request().method() !== "PUT") return route.continue();
+    attempts++;
+    if (attempts === 1) await route.abort("failed");
+    else await route.continue();
+  });
+  await page
+    .getByRole("button", { name: "Upload mod / plugin JARs", exact: true })
+    .click();
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "recovered.jar",
+    mimeType: "application/java-archive",
+    buffer: await archive({ "fabric.mod.json": '{"id":"recovered"}' }),
+  });
+  await page
+    .getByLabel("I trust these files and confirm their installation.")
+    .check();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Upload", exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).toHaveCount(0, { timeout: 30000 });
+  await expect(page.locator(".inventory-list")).toContainText("recovered.jar");
+  expect(attempts).toBeGreaterThanOrEqual(2);
 });
 
 test("uploads saved worlds through ZIP and native folder selection", async ({

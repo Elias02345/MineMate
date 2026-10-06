@@ -367,7 +367,7 @@ export class Servers {
       }
     }
     const image =
-      process.env.MINEMATE_RUNTIME_IMAGE ?? "ghcr.io/elias02345/minemate:0.4.1";
+      process.env.MINEMATE_RUNTIME_IMAGE ?? "ghcr.io/elias02345/minemate:0.4.2";
     if (!/^[a-zA-Z0-9./_-]+:[a-zA-Z0-9._-]+$/.test(image))
       throw new AppError(
         "GATEWAY_IMAGE",

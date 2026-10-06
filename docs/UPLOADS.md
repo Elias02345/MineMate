@@ -81,8 +81,14 @@ world. Invalid world formats are rejected before touching the current server.
 
 ## Progress and limits
 
-The dialog displays transfer percentage followed by real installation/import
-phases and remains open until the operation completes. Switching upload type
+The dialog displays acknowledged transfer percentage, the current filename,
+validation progress, and then installation/import phases. A retry after a
+network drop resumes at the last confirmed byte. Reopen the same upload and
+reselect the same files after a browser restart to resume the saved session.
+Each 1 MiB request has a SHA-256 checksum; MineMate then checks the SHA-256 of
+the entire staged file. A changed file is transferred again. Minecraft is
+stopped only after every selected file is complete and validated.
+Switching upload type
 clears stale files and confirmation. Startup errors remain visible in Activity
 and Repair. Management dialogs keep their action buttons outside the scrolling
 form, including narrow or short viewports.
@@ -91,16 +97,32 @@ MineMate does not impose a 30-second request deadline on streamed uploads.
 - Mod, plugin and general file batches have no fixed file-count limit, both in
   the creation wizard and when uploading later. Files are streamed to staging
   and the complete batch is validated before installation.
-- World folders have no fixed file-count limit and require a complete
-  relative-path manifest (at most 2 MB of path metadata).
-- Each uploaded file: at most 512 MB; aggregate upload: at most 20 GB. Larger
-  folders can be ZIP-compressed, within the archive-upload and expansion limits.
+- World folders have no fixed file-count limit and preserve all relative paths.
+- Aggregate upload: at most 20 GiB, including multi-GB ZIP or MRPACK archives.
+  There is no separate 512 MB per-file cap in the resumable browser upload.
 - Archive expansion: 20 GB total, 4 GB per member, 100,000 members, bounded ratios.
 - Paths, symbolic links, special files, duplicate paths and incomplete folder
-  lists are rejected. Staging files are cleaned after success and failure.
+  lists are rejected. Unfinished resumable sessions expire after 48 hours of
+  inactivity; successful sessions are also removed after that period.
 
-Reverse proxies must allow the chosen request size and operation duration.
+Reverse proxies need only permit 1 MiB request bodies, but should allow long
+responses while MineMate verifies a large archive. Configure HTTPS at the proxy
+when uploading over an untrusted network: checksums detect corruption, while TLS
+protects session cookies and file contents. For Nginx, set
+`client_max_body_size 2m` (or more) and avoid buffering huge legacy uploads.
+See the official [request-body limit](https://nginx.org/en/docs/http/ngx_http_core_module.html#client_max_body_size)
+and [proxy buffering](https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_request_buffering) documentation.
 Uploads run only after authentication, permission checks and explicit confirmation.
+
+Modrinth `.mrpack` imports use `modrinth.index.json`, pinned Minecraft/loader
+dependencies, verified downloads and server overrides. CurseForge ZIP imports
+use `manifest.json` and their listed file IDs. A ready-to-run server ZIP with
+`server.properties` belongs in **Server ZIP**, with a matching Minecraft loader
+selected first. MineMate does not execute bundled scripts or automatically
+convert client-only mods, loader versions or Minecraft versions. Forge and
+NeoForge require their matching installer JAR; an installer is not a mod JAR.
+Reserve at least 4 GiB of RAM for larger modpacks and check the pack publisher's
+server requirements.
 
 ## Host port
 

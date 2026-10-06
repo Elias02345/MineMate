@@ -304,7 +304,10 @@ export class Content {
     const destinations = new Set<string>();
     let targetConfig = s.config;
     try {
-      for (const input of files) {
+      for (const [index, input] of files.entries()) {
+        phase(
+          `Validating JAR ${index + 1}/${files.length}: ${String(input.name)}`,
+        );
         const file = await safePath(
             this.servers.paths.server(s.id, "uploads"),
             String(input.filename),

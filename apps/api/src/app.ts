@@ -1,5 +1,6 @@
 import { registerBackupsRoutes } from "./routes/backups.ts";
 import { registerContentRoutes } from "./routes/content.ts";
+import { registerUploadSessionRoutes } from "./routes/upload-sessions.ts";
 import { registerConfigurationRoutes } from "./routes/configuration.ts";
 import { registerServersRoutes } from "./routes/servers.ts";
 import { registerAccountsRoutes } from "./routes/accounts.ts";
@@ -79,6 +80,10 @@ export async function createApp(options: AppOptions = {}) {
   await app.register(multipart, {
     limits: { fileSize: 512 * 1024 ** 2, files: Infinity, parts: Infinity },
   });
+  app.addContentTypeParser(
+    "application/octet-stream",
+    (_request, payload, done) => done(null, payload),
+  );
   app.decorateRequest("user", null);
   app.decorateRequest("sessionId", null);
   app.decorateRequest("csrfToken", null);
@@ -158,6 +163,7 @@ export async function createApp(options: AppOptions = {}) {
   registerServersRoutes(context);
   registerConfigurationRoutes(context);
   registerContentRoutes(context);
+  registerUploadSessionRoutes(context);
   registerBackupsRoutes(context);
   if (options.static !== false) {
     try {
