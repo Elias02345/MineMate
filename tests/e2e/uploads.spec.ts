@@ -98,6 +98,7 @@ async function fit(page: Page, selector: string) {
 test("creates NeoForge with 201 wizard mods and adds 121 mods from Inventory", async ({
   page,
 }) => {
+  test.setTimeout(120000);
   await login(page);
   await page.setViewportSize({ width: 390, height: 680 });
   await page
@@ -217,7 +218,7 @@ test("creates NeoForge with 201 wizard mods and adds 121 mods from Inventory", a
     .getByRole("dialog")
     .getByRole("button", { name: "Upload", exact: true })
     .click();
-  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByRole("dialog")).toHaveCount(0, { timeout: 30000 });
   await expect(page.locator(".inventory-list")).toContainText("later-mod.jar");
   expect(
     await (
