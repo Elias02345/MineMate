@@ -42,6 +42,7 @@ const kinds = z.enum([
 ]);
 const input = z.object({
   kind: kinds,
+  resumeFrom: idSchema.optional(),
   software: serverConfigSchema.shape.software.optional(),
   directory: z.string().max(512).default(""),
   confirm: z.literal(true),
@@ -126,6 +127,51 @@ export function registerUploadSessionRoutes(context: RouteContext) {
     const temporary = path.join(root, "manifest.tmp");
     await writeFile(temporary, JSON.stringify(s), { mode: 0o600 });
     await rename(temporary, path.join(root, "manifest.json"));
+  };
+  const carryOver = async (s: Session, previousId?: string) => {
+    if (!previousId || s.kind !== "jar" || previousId === s.id) return;
+    await serialized(previousId, async () => {
+      let previous: Session;
+      try {
+        previous = JSON.parse(
+          await readFile(
+            path.join(dir(s.serverId, previousId), "manifest.json"),
+            "utf8",
+          ),
+        ) as Session;
+      } catch {
+        return;
+      }
+      if (
+        previous.id !== previousId ||
+        previous.serverId !== s.serverId ||
+        previous.actor !== s.actor ||
+        previous.kind !== s.kind ||
+        previous.directory !== s.directory ||
+        previous.software !== s.software ||
+        previous.operationId
+      )
+        return;
+      const existing = new Map(
+        previous.files.map((file, index) => [
+          JSON.stringify([file.name, file.size, file.lastModified ?? null]),
+          index,
+        ]),
+      );
+      for (const [index, file] of s.files.entries()) {
+        const oldIndex = existing.get(
+          JSON.stringify([file.name, file.size, file.lastModified ?? null]),
+        );
+        if (oldIndex === undefined) continue;
+        const source = await target(previous, oldIndex);
+        const size = await stat(source)
+          .then((info) => info.size)
+          .catch(() => -1);
+        if (size < 0 || size > file.size) continue;
+        await rename(source, await target(s, index));
+      }
+      await rm(dir(s.serverId, previousId), { recursive: true, force: true });
+    });
   };
   const load = async (
     r: Parameters<typeof world>[0],
@@ -268,6 +314,7 @@ export function registerUploadSessionRoutes(context: RouteContext) {
           await writeFile(destination, "", { flag: "wx", mode: 0o600 });
         }
       await save(s);
+      await carryOver(s, spec.resumeFrom);
       return reply.code(201).send(await state(s));
     },
   );

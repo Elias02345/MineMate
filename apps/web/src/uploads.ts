@@ -64,11 +64,13 @@ export async function uploadSelection(
   const key = `minemate-upload:${serverId}:${kind}:${directory}:${software || ""}`;
   const base = `/servers/${serverId}/upload-sessions`;
   let state: UploadState | undefined;
+  let resumeFrom: string | undefined;
   try {
     const saved = JSON.parse(localStorage.getItem(key) || "null") as {
       id: string;
       spec: typeof spec;
     } | null;
+    resumeFrom = saved?.id;
     if (saved && JSON.stringify(saved.spec) === JSON.stringify(spec))
       state = await api<UploadState>(`${base}/${saved.id}`);
   } catch {
@@ -77,10 +79,12 @@ export async function uploadSelection(
   if (
     state?.operation &&
     ["FAILED", "INTERRUPTED"].includes(state.operation.status)
-  )
+  ) {
     state = undefined;
+    resumeFrom = undefined;
+  }
   if (!state) {
-    state = await mutate<UploadState>(base, spec);
+    state = await mutate<UploadState>(base, { ...spec, resumeFrom });
     try {
       localStorage.setItem(key, JSON.stringify({ id: state.id, spec }));
     } catch {

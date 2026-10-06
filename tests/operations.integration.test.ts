@@ -290,6 +290,82 @@ describe("world operations with a controlled Docker fixture", () => {
       ),
     ).toEqual(jar);
   });
+  it("reuses uploaded mods when a rejected JAR is removed from a wizard batch", async () => {
+    const base = `/api/v1/servers/${server.id}/upload-sessions`;
+    const good = await archive({ "fabric.mod.json": '{"id":"fixture"}' });
+    const bad = await archive({ "README.txt": "not a mod" });
+    const selected = [
+      { name: "one.jar", size: good.length, lastModified: 123 },
+      { name: "bad.jar", size: bad.length, lastModified: 123 },
+      { name: "two.jar", size: good.length, lastModified: 123 },
+    ];
+    const create = (files: typeof selected, resumeFrom?: string) =>
+      instance.app.inject({
+        method: "POST",
+        url: base,
+        headers,
+        payload: { kind: "jar", confirm: true, files, resumeFrom },
+      });
+    const first = await create(selected);
+    expect(first.statusCode, first.body).toBe(201);
+    const firstId = first.json().id as string;
+    for (const [index, bytes] of [good, bad, good].entries()) {
+      const part = await instance.app.inject({
+        method: "PUT",
+        url: `${base}/${firstId}/files/${index}`,
+        headers: {
+          ...headers,
+          "content-type": "application/octet-stream",
+          "x-upload-offset": "0",
+          "x-upload-sha256": createHash("sha256").update(bytes).digest("hex"),
+        },
+        payload: bytes,
+      });
+      expect(part.statusCode, part.body).toBe(200);
+    }
+    const rejected = await instance.app.inject({
+      method: "POST",
+      url: `${base}/${firstId}/files/1/validate`,
+      headers,
+      payload: { sha256: createHash("sha256").update(bad).digest("hex") },
+    });
+    expect(rejected.statusCode).toBe(400);
+    expect(rejected.json().message).toContain(
+      "bad.jar: This JAR has no Java classes or recognized mod/plugin metadata.",
+    );
+    const retry = await create([selected[0]!, selected[2]!], firstId);
+    expect(retry.statusCode, retry.body).toBe(201);
+    expect(
+      retry.json().files.map((file: { offset: number }) => file.offset),
+    ).toEqual([good.length, good.length]);
+    const retryId = retry.json().id as string;
+    for (const index of [0, 1]) {
+      const checked = await instance.app.inject({
+        method: "POST",
+        url: `${base}/${retryId}/files/${index}/validate`,
+        headers,
+        payload: { sha256: createHash("sha256").update(good).digest("hex") },
+      });
+      expect(checked.statusCode, checked.body).toBe(200);
+    }
+    const finished = await instance.app.inject({
+      method: "POST",
+      url: `${base}/${retryId}/finish`,
+      headers,
+      payload: {},
+    });
+    expect(finished.statusCode, finished.body).toBe(202);
+    expect((await finish(finished.json().operation.id)).status).toBe(
+      "SUCCEEDED",
+    );
+    expect(
+      instance.store
+        .content(server.id)
+        .map((item) => item.filename)
+        .sort(),
+    ).toEqual(["mods/one.jar", "mods/two.jar"]);
+    expect(instance.store.backups(server.id)).toHaveLength(1);
+  });
   it("accepts 464 separately acknowledged files without a per-minute request cap", async () => {
     const base = `/api/v1/servers/${server.id}/upload-sessions`;
     const files = Array.from({ length: 464 }, (_, i) => ({

@@ -36,7 +36,10 @@ this step. Changing the software or edition clears incompatible selections.
 Server JAR, world/archive import and the content batch are applied in that order.
 A failed batch keeps the created world and completed uploads; correct the mod
 selection and retry without creating another server or repeating a successful
-world import. Duplicate filenames, excess size/count or non-JAR extensions block
+world import. If a JAR fails validation, the error names that file. Remove it
+from the selection and retry: already transferred, unchanged JARs are reused
+without another network upload, then their checksums and archive contents are
+verified again. Duplicate filenames, excess size or non-JAR extensions block
 continuation; archive validation also runs before any batch is installed.
 
 For an existing server, open **Inventory → Upload mod / plugin JARs**. Select several `.jar` files together,
@@ -50,6 +53,8 @@ NeoForge, Fabric and Custom receive `mods/`; Paper and Purpur receive `plugins/`
 The server installer stays separate from the mod inventory. Custom launchers must
 support the selected mods. Minecraft versions, loader versions and mod dependencies
 still need to be compatible; files are not automatically converted between loaders.
+If you select a Forge or NeoForge installer as a mod, MineMate identifies it and
+asks you to choose it under **Server installation** instead.
 
 A recovery point is saved before applying files. A previously running server is
 restarted and checked, with rollback on failure. A stopped server remains stopped.
@@ -85,6 +90,10 @@ The dialog displays acknowledged transfer percentage, the current filename,
 validation progress, and then installation/import phases. A retry after a
 network drop resumes at the last confirmed byte. Reopen the same upload and
 reselect the same files after a browser restart to resume the saved session.
+After removing a rejected file, the other unchanged JARs are carried into the
+new selection's session, so a large mod collection does not have to cross the
+network again. The browser rechecks each carried file's full hash before
+installation.
 Each 1 MiB request has a SHA-256 checksum; MineMate then checks the SHA-256 of
 the entire staged file. A changed file is transferred again. Minecraft is
 stopped only after every selected file is complete and validated.

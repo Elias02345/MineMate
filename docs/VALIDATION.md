@@ -12,6 +12,25 @@ byte-for-byte public release download checks and the full production Compose
 smoke against that published amd64 image also pass. GitHub names the environment
 asset `default.env.example`; download it as `.env`.
 
+## Named JAR errors and retry reuse (0.4.3)
+
+On 2026-10-06, strict TypeScript, lint, 74 unit/API tests, production builds,
+all 17 browser tests and the Docker integration test pass. The browser suite
+includes the corrected-selection retry and NeoForge's 201-mod creation flow.
+The locally built 0.4.3 image also passes the production Compose smoke,
+including non-root startup, the socket proxy, host bind discovery and retained
+owner login after recreation.
+
+The Java creation wizard and Inventory upload identify a rejected mod or plugin
+by filename. A Forge or NeoForge installer selected as a mod receives a specific
+instruction to place it under Server installation. A corrected selection carries
+over previously staged, unchanged JARs without retransmitting them; every carried
+file is fully hashed and its archive contents are validated before installation.
+The API test stages two valid JARs and an invalid one, rejects the named invalid
+file, then confirms the corrected session installs only the two valid JARs from
+their already transferred bytes. The browser retry test confirms no extra chunk
+requests after removing the invalid JAR and no duplicate server creation.
+
 ## Resumable multi-GB uploads (0.4.2)
 
 On 2026-10-06, strict TypeScript, lint, 72 unit/API checks and production builds

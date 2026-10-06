@@ -1,4 +1,9 @@
 import { describe, it, expect } from "vitest";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import yazl from "yazl";
+import { validateJar } from "../apps/api/src/jars.ts";
 import {
   resolveDependencies,
   validateDownloadUrl,
@@ -44,6 +49,55 @@ function provider(
   };
 }
 describe("content resolution and retention", () => {
+  it("names the rejected JAR and keeps a NeoForge installer out of mods", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "minemate-jars-"));
+    const makeJar = async (name: string, entries: Record<string, string>) => {
+      const zip = new yazl.ZipFile();
+      for (const [entry, data] of Object.entries(entries))
+        zip.addBuffer(Buffer.from(data), entry);
+      const chunks: Buffer[] = [];
+      const complete = new Promise<Buffer>((resolve, reject) => {
+        zip.outputStream.on("data", (chunk: Buffer) => chunks.push(chunk));
+        zip.outputStream.on("error", reject);
+        zip.outputStream.on("end", () => resolve(Buffer.concat(chunks)));
+      });
+      zip.end();
+      const file = path.join(directory, name);
+      await writeFile(file, await complete);
+      return file;
+    };
+    try {
+      const neoForge = { ...config, software: "NEOFORGE" as const };
+      const unknown = await makeJar("unknown.jar", {
+        "README.txt": "not a mod",
+      });
+      await expect(
+        validateJar(unknown, "unknown.jar", neoForge, false),
+      ).rejects.toThrow(
+        "unknown.jar: This JAR has no Java classes or recognized mod/plugin metadata.",
+      );
+      const installer = await makeJar("neoforge-installer.jar", {
+        "install_profile.json": "{}",
+        "example/Installer.class": "class fixture",
+      });
+      await expect(
+        validateJar(installer, "neoforge-installer.jar", neoForge, false),
+      ).rejects.toMatchObject({
+        code: "INSTALLER_AS_MOD",
+        message: expect.stringContaining(
+          "neoforge-installer.jar: This is a Forge/NeoForge installer",
+        ),
+      });
+      const mod = await makeJar("good.jar", {
+        "META-INF/neoforge.mods.toml": "[[mods]]",
+      });
+      await expect(
+        validateJar(mod, "good.jar", neoForge, false),
+      ).resolves.toBeUndefined();
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
   it("orders required dependencies before their dependent and reports optional items", async () => {
     const p = provider({
       root: version("root", [

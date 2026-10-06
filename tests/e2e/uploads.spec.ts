@@ -231,9 +231,15 @@ test("custom JAR, world and bulk mods retry only the failed batch without duplic
 }) => {
   await login(page);
   const requests: string[] = [];
+  let chunks = 0;
   page.on("request", (request) => {
-    if (request.method() !== "POST") return;
     const pathname = new URL(request.url()).pathname;
+    if (
+      request.method() === "PUT" &&
+      /\/upload-sessions\/[^/]+\/files\/\d+$/.test(pathname)
+    )
+      chunks++;
+    if (request.method() !== "POST") return;
     if (pathname === "/api/v1/servers") requests.push("create");
     else if (/\/api\/v1\/servers\/[^/]+\/upload-sessions$/.test(pathname))
       requests.push((request.postDataJSON() as { kind: string }).kind);
@@ -305,14 +311,18 @@ test("custom JAR, world and bulk mods retry only the failed batch without duplic
   await craft.click();
   await page.getByText("Technical details", { exact: true }).click();
   await expect(
-    page.getByText("This archive contains no recognizable mod or plugin.", {
-      exact: true,
-    }),
+    page.getByText(
+      "bad-mod.jar: This JAR has no Java classes or recognized mod/plugin metadata. Select the actual mod or plugin JAR for this server.",
+      {
+        exact: true,
+      },
+    ),
   ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Open the created world", exact: true }),
   ).toBeVisible();
   expect(requests).toEqual(["create", "custom", "world", "jar"]);
+  expect(chunks).toBe(4);
   const servers = (await (
     await page.request.get("/api/v1/servers")
   ).json()) as Server[];
@@ -335,6 +345,7 @@ test("custom JAR, world and bulk mods retry only the failed batch without duplic
     page.getByRole("heading", { name: "Custom wizard retry", exact: true }),
   ).toBeVisible();
   expect(requests).toEqual(["create", "custom", "world", "jar", "jar"]);
+  expect(chunks).toBe(4);
   const content = (await (
     await page.request.get(`/api/v1/servers/${server.id}/content`)
   ).json()) as { filename: string }[];

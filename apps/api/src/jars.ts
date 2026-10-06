@@ -20,7 +20,26 @@ export async function validateJar(
     /[\/\\\x00-\x1f]/.test(name) ||
     !/\.jar$/i.test(name)
   )
-    throw new AppError("JAR", "Choose a file ending in .jar.");
+    throw new AppError("JAR", `${name}: Choose a file ending in .jar.`);
+  try {
+    await validateJarContents(file, config, server);
+  } catch (error) {
+    if (error instanceof AppError)
+      throw new AppError(
+        error.code,
+        `${name}: ${error.message}`,
+        error.status,
+        error.detail,
+      );
+    throw error;
+  }
+}
+
+async function validateJarContents(
+  file: string,
+  config: ServerConfig,
+  server: boolean,
+) {
   const entries = await inspectArchive(file);
   if (!server) {
     if (
@@ -31,6 +50,11 @@ export async function validateJar(
       throw new AppError(
         "LOADER",
         "Choose a mod or plugin loader before uploading content.",
+      );
+    if (entries.some((entry) => entry.name === "install_profile.json"))
+      throw new AppError(
+        "INSTALLER_AS_MOD",
+        "This is a Forge/NeoForge installer, not a mod. Select it only under Server installation.",
       );
     if (
       !entries.some(
@@ -47,7 +71,7 @@ export async function validateJar(
     )
       throw new AppError(
         "JAR",
-        "This archive contains no recognizable mod or plugin.",
+        "This JAR has no Java classes or recognized mod/plugin metadata. Select the actual mod or plugin JAR for this server.",
       );
     return;
   }
