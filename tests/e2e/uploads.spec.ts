@@ -15,10 +15,14 @@ test.beforeEach(async ({ context }, info) => {
   });
 });
 
-async function archive(entries: Record<string, string | Buffer>) {
+async function archive(
+  entries: Record<string, string | Buffer> | [string, string | Buffer][],
+) {
   const zip = new yazl.ZipFile(),
     chunks: Buffer[] = [];
-  for (const [name, text] of Object.entries(entries))
+  for (const [name, text] of Array.isArray(entries)
+    ? entries
+    : Object.entries(entries))
     zip.addBuffer(Buffer.from(text), name);
   const done = new Promise<Buffer>((resolve, reject) => {
     zip.outputStream.on("data", (chunk: Buffer) => chunks.push(chunk));
@@ -227,7 +231,7 @@ test("creates NeoForge with 201 wizard mods and adds 121 mods from Inventory", a
   ).toHaveLength(322);
 });
 
-test("creates ATM from one ServerFiles ZIP without manual loader setup", async ({
+test("retries an ATM ServerFiles ZIP in the created world and accepts identical JAR resources", async ({
   page,
 }) => {
   await login(page);
@@ -237,15 +241,26 @@ test("creates ATM from one ServerFiles ZIP without manual loader setup", async (
       version: "neoforge-26.1.2.109",
     }),
   });
-  const mod = await archive({
-    "META-INF/neoforge.mods.toml": "[[mods]]",
-  });
-  const pack = await archive({
+  const mod = await archive([
+    ["META-INF/neoforge.mods.toml", "[[mods]]"],
+    ["META-INF/LICENSE.txt", "shared license"],
+    ["META-INF/LICENSE.txt", "shared license"],
+  ]);
+  const rejectedMod = await archive([
+    ["META-INF/neoforge.mods.toml", "[[mods]]"],
+    ["META-INF/LICENSE.txt", "first license"],
+    ["META-INF/LICENSE.txt", "different license"],
+  ]);
+  const packFiles = {
     "neoforge-26.1.2.109-installer.jar": installer,
-    "mods/example.jar": mod,
     "config/atm.toml": "enabled = true",
     "kubejs/server_scripts/atm.js": "// pack content",
     "startserver.sh": "exit 99",
+  };
+  const pack = await archive({ ...packFiles, "mods/example.jar": mod });
+  const rejectedPack = await archive({
+    ...packFiles,
+    "mods/example.jar": rejectedMod,
   });
   await page
     .getByRole("button", { name: "Create a world", exact: true })
@@ -270,9 +285,9 @@ test("creates ATM from one ServerFiles ZIP without manual loader setup", async (
     page.getByText("Choose one ServerFiles ZIP archive."),
   ).toBeVisible();
   await page.locator('input[type="file"]').setInputFiles({
-    name: "ServerFiles-0.10.0-beta.zip",
+    name: "ServerFiles-invalid.zip",
     mimeType: "application/zip",
-    buffer: pack,
+    buffer: rejectedPack,
   });
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(page.getByLabel("Memory in MB")).toHaveValue("8192");
@@ -280,6 +295,22 @@ test("creates ATM from one ServerFiles ZIP without manual loader setup", async (
   await page.getByLabel("I have read and accept").check();
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await page.getByLabel("Give your world a name").fill("ATM 11 fixture");
+  await page.getByRole("button", { name: "Craft this world" }).click();
+  await page.getByText("Technical details", { exact: true }).click();
+  await expect(
+    page.getByText(
+      "example.jar: Duplicate archive paths have different content.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Open the created world", exact: true }),
+  ).toBeVisible();
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "ServerFiles-0.10.0-beta.zip",
+    mimeType: "application/zip",
+    buffer: pack,
+  });
   await page.getByRole("button", { name: "Craft this world" }).click();
   await expect(
     page.getByRole("heading", { name: "ATM 11 fixture", exact: true }),
@@ -296,6 +327,12 @@ test("creates ATM from one ServerFiles ZIP without manual loader setup", async (
     java: "auto",
   });
   expect(server.state).toBe("RUNNING");
+  const servers = (await (
+    await page.request.get("/api/v1/servers")
+  ).json()) as Server[];
+  expect(servers.filter((item) => item.name === "ATM 11 fixture")).toHaveLength(
+    1,
+  );
   await page.getByRole("tab", { name: "Inventory", exact: true }).click();
   await expect(page.locator(".inventory-list")).toContainText("example.jar");
 });

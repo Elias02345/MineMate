@@ -105,6 +105,15 @@ created world instead of making a duplicate. Existing Java worlds can still use
 **Inventory → Upload mod / plugin JARs → Upload type: Modpack**; their previous
 mod/config content is replaced after a recovery point is saved.
 
+Some mod JARs, including `ars_nouveau-1.21.1-5.13.1.jar`, contain repeated
+`META-INF/LICENSE.txt` or `META-INF/NOTICE.txt` entries. MineMate accepts these
+automatically after verifying their contents are byte-identical. Keep the
+original JAR and ServerFiles ZIP; no manual unpacking or patching is needed.
+If an older version rejected such a JAR after creating the world, update
+MineMate, select the ServerFiles ZIP again in the existing wizard and retry.
+The already created world is reused. Repeated paths with different contents
+inside a JAR, and any repeated path in the outer ServerFiles ZIP, remain invalid.
+
 MineMate imports game content such as `mods/`, `config/`, `defaultconfigs/`
 and `kubejs/`. It uses its own server settings, EULA and Java memory limit;
 bundled host startup scripts, JVM argument files and preinstalled libraries
@@ -139,9 +148,11 @@ MineMate does not impose a 30-second request deadline on streamed uploads.
 - Aggregate upload: at most 20 GiB, including multi-GB ZIP or MRPACK archives.
   There is no separate 512 MB per-file cap in the resumable browser upload.
 - Archive expansion: 20 GB total, 4 GB per member, 100,000 members, bounded ratios.
-- Paths, symbolic links, special files, duplicate paths and incomplete folder
-  lists are rejected. Unfinished resumable sessions expire after 48 hours of
-  inactivity; successful sessions are also removed after that period.
+- Unsafe paths, symbolic links, special files, duplicate paths in extracted
+  archives and incomplete folder lists are rejected. Byte-identical duplicate
+  resources inside unextracted JARs are accepted. Unfinished resumable sessions
+  expire after 48 hours of inactivity; successful sessions are also removed
+  after that period.
 
 Reverse proxies need only permit 1 MiB request bodies, but should allow long
 responses while MineMate verifies a large archive. Configure HTTPS at the proxy

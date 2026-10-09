@@ -19,7 +19,7 @@ import {
   readWorldText,
 } from "../../../packages/backup/src/paths.ts";
 import {
-  inspectArchive,
+  inspectJarArchive,
   extractArchive,
   hashFile,
   walk,
@@ -543,7 +543,7 @@ export class Content {
       version.hash,
       version.hashAlgorithm,
     );
-    await inspectArchive(temporary);
+    await inspectJarArchive(temporary);
     await rename(temporary, file);
     return file;
   }
@@ -565,7 +565,7 @@ export class Content {
           version.hash,
           version.hashAlgorithm,
         );
-        await inspectArchive(file);
+        await inspectJarArchive(file);
         result.push({ version, file });
       }
       return result;

@@ -1,5 +1,5 @@
 import {
-  inspectArchive,
+  inspectJarArchive,
   readArchiveMember,
 } from "../../../packages/backup/src/archive.ts";
 import { relativeSafe } from "../../../packages/backup/src/paths.ts";
@@ -40,7 +40,7 @@ async function validateJarContents(
   config: ServerConfig,
   server: boolean,
 ) {
-  const entries = await inspectArchive(file);
+  const entries = await inspectJarArchive(file);
   if (!server) {
     if (
       !["PAPER", "PURPUR", "FABRIC", "FORGE", "NEOFORGE", "CUSTOM"].includes(

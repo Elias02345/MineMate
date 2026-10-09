@@ -12,6 +12,20 @@ byte-for-byte public release download checks and the full production Compose
 smoke against that published amd64 image also pass. GitHub names the environment
 asset `default.env.example`; download it as `.env`.
 
+## Duplicate resources in ATM mod JARs (0.4.6)
+
+The exact published `ars_nouveau-1.21.1-5.13.1.jar` (SHA-512
+`5c7f36345faf4a16a183f3d7839c0c22a0d21638410598b23049867c87acc2e673974e2eb1d0bee1b616aca14c9642f7c97e2c28a17259cddc84b731ca95684f`)
+contains six copies each of `META-INF/LICENSE.txt` and
+`META-INF/NOTICE.txt`. Each set is byte-identical. MineMate's mod JAR
+validation now checks repeated entries cryptographically and accepts those
+identical resources without altering the JAR. Different contents at the same
+path still fail. The outer ServerFiles ZIP and extracted archives keep their
+strict duplicate-path rule. The controlled ATM import and browser wizard tests
+cover the fix, including retrying an import in the existing world after a
+rejected pack. The user's 1.1 GB `ServerFiles-8.2.zip` was not available for a
+full-pack run here.
+
 ## Dedicated ATM world creator (0.4.5)
 
 The Java wizard now offers **All the Mods (ATM)** as a separate choice. It

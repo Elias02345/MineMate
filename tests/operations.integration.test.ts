@@ -99,10 +99,14 @@ describe("world operations with a controlled Docker fixture", () => {
     );
     return finish(op.id);
   }
-  async function archive(entries: Record<string, string | Buffer>) {
+  async function archive(
+    entries: Record<string, string | Buffer> | [string, string | Buffer][],
+  ) {
     const zip = new yazl.ZipFile(),
       chunks: Buffer[] = [];
-    for (const [name, text] of Object.entries(entries))
+    for (const [name, text] of Array.isArray(entries)
+      ? entries
+      : Object.entries(entries))
       zip.addBuffer(Buffer.from(text), name);
     const done = new Promise<Buffer>((resolve, reject) => {
       zip.outputStream.on("data", (chunk: Buffer) => chunks.push(chunk));
@@ -552,10 +556,12 @@ describe("world operations with a controlled Docker fixture", () => {
         version: "neoforge-26.1.2.109",
       }),
     });
-    const mod = await archive({
-      "META-INF/neoforge.mods.toml": "[[mods]]",
-      "example/Mod.class": "fixture",
-    });
+    const mod = await archive([
+      ["META-INF/neoforge.mods.toml", "[[mods]]"],
+      ["example/Mod.class", "fixture"],
+      ["META-INF/LICENSE.txt", "shared license"],
+      ["META-INF/LICENSE.txt", "shared license"],
+    ]);
     const nested = "META-INF/jarjar/mezz_config.jar";
     const jarJar = await archive({
       "META-INF/jarjar/metadata.json": JSON.stringify({
@@ -565,7 +571,7 @@ describe("world operations with a controlled Docker fixture", () => {
     });
     const pack = await archive({
       "neoforge-26.1.2.109-installer.jar": installer,
-      "mods/regular.jar": mod,
+      "mods/ars_nouveau-1.21.1-5.13.1.jar": mod,
       "mods/mezz_config-standalone.jar": jarJar,
       "config/atm.toml": "enable = true\n",
       "kubejs/server_scripts/atm.js": "// game content\n",
@@ -651,7 +657,10 @@ describe("world operations with a controlled Docker fixture", () => {
         .content(server.id)
         .map((item) => item.filename)
         .sort(),
-    ).toEqual(["mods/mezz_config-standalone.jar", "mods/regular.jar"]);
+    ).toEqual([
+      "mods/ars_nouveau-1.21.1-5.13.1.jar",
+      "mods/mezz_config-standalone.jar",
+    ]);
     for (const name of ["startserver.sh", "user_jvm_args.txt"])
       await expect(readFile(path.join(root, name))).rejects.toMatchObject({
         code: "ENOENT",

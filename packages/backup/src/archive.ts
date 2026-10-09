@@ -96,9 +96,37 @@ export function validateEntry(
     );
   return { name, bytes: entry.uncompressedSize, directory };
 }
+async function hashEntry(zip: yauzl.ZipFile, entry: yauzl.Entry) {
+  const stream = await new Promise<import("node:stream").Readable>(
+    (resolve, reject) =>
+      zip.openReadStream(entry, (error, value) =>
+        error || !value
+          ? reject(
+              error ??
+                new AppError("INVALID_ARCHIVE", "Cannot read archive member."),
+            )
+          : resolve(value),
+      ),
+  );
+  const hash = createHash("sha256");
+  let bytes = 0;
+  for await (const chunk of stream) {
+    bytes += (chunk as Buffer).length;
+    if (bytes > entry.uncompressedSize)
+      throw new AppError(
+        "ARCHIVE_LIMIT",
+        "Archive size does not match its manifest.",
+      );
+    hash.update(chunk as Buffer);
+  }
+  if (bytes !== entry.uncompressedSize)
+    throw new AppError("INVALID_ARCHIVE", "Archive member is incomplete.");
+  return hash.digest("hex");
+}
 async function processArchive(
   file: string,
   destination?: string,
+  identicalDuplicates = false,
 ): Promise<ArchiveEntry[]> {
   if (destination) await mkdir(destination, { recursive: true, mode: 0o700 });
   return new Promise((resolve, reject) => {
@@ -116,8 +144,12 @@ async function processArchive(
           return;
         }
         const entries: ArchiveEntry[] = [],
-          names = new Set<string>();
+          names = new Map<
+            string,
+            { info: ArchiveEntry; entry: yauzl.Entry; hash?: string }
+          >();
         let expanded = 0,
+          count = 0,
           failed = false;
         const fail = (e: unknown) => {
           if (failed) return;
@@ -135,15 +167,38 @@ async function processArchive(
             expanded += e.bytes;
             if (
               expanded > archiveLimits.bytes ||
-              entries.length >= archiveLimits.files
+              count++ >= archiveLimits.files
             )
               throw new AppError("ARCHIVE_LIMIT", "This archive is too large.");
-            if (names.has(e.name))
-              throw new AppError(
-                "INVALID_ARCHIVE",
-                "Duplicate archive paths are not allowed.",
-              );
-            names.add(e.name);
+            const previous = names.get(e.name);
+            if (previous) {
+              if (!identicalDuplicates || destination)
+                throw new AppError(
+                  "INVALID_ARCHIVE",
+                  "Duplicate archive paths are not allowed.",
+                );
+              if (
+                previous.info.directory !== e.directory ||
+                (!e.directory &&
+                  (previous.info.bytes !== e.bytes ||
+                    previous.entry.crc32 !== entry.crc32))
+              )
+                throw new AppError(
+                  "INVALID_ARCHIVE",
+                  "Duplicate archive paths have different content.",
+                );
+              if (!e.directory) {
+                previous.hash ??= await hashEntry(zip, previous.entry);
+                if (previous.hash !== (await hashEntry(zip, entry)))
+                  throw new AppError(
+                    "INVALID_ARCHIVE",
+                    "Duplicate archive paths have different content.",
+                  );
+              }
+              zip.readEntry();
+              return;
+            }
+            names.set(e.name, { info: e, entry });
             entries.push(e);
             if (destination) {
               const target = await safePath(destination, e.name, true);
@@ -188,6 +243,10 @@ async function processArchive(
 }
 export function inspectArchive(file: string) {
   return processArchive(file);
+}
+/** JARs are executed as-is. Shaded mods may repeat identical resources. */
+export function inspectJarArchive(file: string) {
+  return processArchive(file, undefined, true);
 }
 export async function extractArchive(file: string, destination: string) {
   try {

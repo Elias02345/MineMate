@@ -21,7 +21,7 @@ import {
   createArchive,
   walk,
   swapDirectory,
-  inspectArchive,
+  inspectJarArchive,
 } from "../../../packages/backup/src/archive.ts";
 import {
   parseProperties,
@@ -549,7 +549,7 @@ export class Files {
     relativeSafe(filename);
     if (!/^[a-zA-Z0-9 _().+-]+\.jar$/i.test(filename))
       throw new AppError("JAR", "Upload a file ending in .jar.");
-    const entries = await inspectArchive(upload);
+    const entries = await inspectJarArchive(upload);
     if (!entries.some((e) => e.name === "META-INF/MANIFEST.MF"))
       throw new AppError(
         "JAR",

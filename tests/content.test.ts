@@ -12,7 +12,10 @@ import {
   type Project,
 } from "../packages/mod-platforms/src/index.ts";
 import { serverConfigSchema } from "../packages/shared/src/index.ts";
-import { retainedBackups } from "../packages/backup/src/archive.ts";
+import {
+  inspectArchive,
+  retainedBackups,
+} from "../packages/backup/src/archive.ts";
 const config = serverConfigSchema.parse({
   name: "test",
   edition: "JAVA",
@@ -53,10 +56,12 @@ describe("content resolution and retention", () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), "minemate-jars-"));
     const makeJar = async (
       name: string,
-      entries: Record<string, string | Buffer>,
+      entries: Record<string, string | Buffer> | [string, string | Buffer][],
     ) => {
       const zip = new yazl.ZipFile();
-      for (const [entry, data] of Object.entries(entries))
+      for (const [entry, data] of Array.isArray(entries)
+        ? entries
+        : Object.entries(entries))
         zip.addBuffer(Buffer.from(data), entry);
       const chunks: Buffer[] = [];
       const complete = new Promise<Buffer>((resolve, reject) => {
@@ -119,6 +124,27 @@ describe("content resolution and retention", () => {
       await expect(
         validateJar(missing, "missing.jar", neoForge, false),
       ).rejects.toMatchObject({ code: "JARJAR" });
+      const duplicatedNotices = await makeJar("ars-like.jar", [
+        ["META-INF/neoforge.mods.toml", "[[mods]]"],
+        ["META-INF/LICENSE.txt", "the same license"],
+        ["META-INF/LICENSE.txt", "the same license"],
+        ["META-INF/NOTICE.txt", "the same notice"],
+        ["META-INF/NOTICE.txt", "the same notice"],
+      ]);
+      await expect(
+        validateJar(duplicatedNotices, "ars-like.jar", neoForge, false),
+      ).resolves.toBeUndefined();
+      await expect(inspectArchive(duplicatedNotices)).rejects.toThrow(
+        "Duplicate archive paths are not allowed.",
+      );
+      const conflicting = await makeJar("conflicting.jar", [
+        ["META-INF/neoforge.mods.toml", "[[mods]]"],
+        ["META-INF/LICENSE.txt", "one license"],
+        ["META-INF/LICENSE.txt", "different license"],
+      ]);
+      await expect(
+        validateJar(conflicting, "conflicting.jar", neoForge, false),
+      ).rejects.toMatchObject({ code: "INVALID_ARCHIVE" });
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
