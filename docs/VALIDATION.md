@@ -12,6 +12,32 @@ byte-for-byte public release download checks and the full production Compose
 smoke against that published amd64 image also pass. GitHub names the environment
 asset `default.env.example`; download it as `.env`.
 
+## All the Mods server packs (0.4.4)
+
+The official
+[ATM-11 0.10.0-beta ServerFiles ZIP](https://www.curseforge.com/minecraft/modpacks/all-the-mods-11/files/9053394)
+is 539,849,188 bytes (SHA-256
+`6f5929f59c01d6569acda4203189000568de8bd3a140389915b28e0d84ce4257`).
+MineMate's safe archive extractor accepted all 1,928 entries. Its server-pack
+preflight recognized the bundled NeoForge 26.1.2.109 installer, Minecraft
+26.1.2 and all 258 mod JARs, including the previously rejected standalone
+NeoForge Jar-in-Jar mod. A complete controlled-runtime import of this exact
+ZIP installed and inventoried all 258 mods, copied game configuration, kept the
+host startup script out, and saved one recovery point. The browser wizard and
+API integration tests exercise the same flow with small deterministic packs.
+
+The pinned `itzg/minecraft-server:2026.9.2-java25` image contains Java 25 and
+recognized the ATM-11 installer in a temporary live-runtime attempt. The
+installer's external download timed out in this cloud environment, so that
+attempt did not establish Minecraft readiness or a client join. The disposable
+runtime containers and volume were removed. A production host needs outbound
+access to Mojang and NeoForge services to complete the initial install.
+
+For version 0.4.4, strict TypeScript, lint, 75 unit/API tests, all 18 browser
+tests, the Docker integration test, production build and the local-image
+Compose smoke passed. The Compose smoke verified the web API, socket proxy,
+non-root startup and retained owner session after recreation.
+
 ## Named JAR errors and retry reuse (0.4.3)
 
 On 2026-10-06, strict TypeScript, lint, 74 unit/API tests, production builds,

@@ -655,6 +655,9 @@ export function Wizard({
                   {worldKind === "world" && (
                     <MineNotice>{t("worldUploadHint")}</MineNotice>
                   )}
+                  {worldKind === "pack" && (
+                    <MineNotice>{t("packImportHint")}</MineNotice>
+                  )}
                 </>
               )}
             </>

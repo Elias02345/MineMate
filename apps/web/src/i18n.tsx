@@ -343,6 +343,10 @@ const messages = {
   worldImport: ["Import a world", "Welt importieren"],
   serverImport: ["Import a server", "Server importieren"],
   packImport: ["Import a modpack", "Modpack importieren"],
+  packImportHint: [
+    "Choose a Modrinth/CurseForge pack or the official ServerFiles ZIP of an ATM pack. MineMate detects the bundled Forge/NeoForge installer, mods and configuration. Do not choose the client pack or upload the installer separately. Host startup scripts are ignored.",
+    "Wähle ein Modrinth-/CurseForge-Pack oder die offizielle ServerFiles-ZIP eines ATM-Packs. MineMate erkennt den enthaltenen Forge-/NeoForge-Installer, Mods und Konfiguration. Nicht das Client-Pack wählen oder den Installer zusätzlich hochladen. Startskripte für den Host werden ignoriert.",
+  ],
   seed: ["World seed (optional)", "Welt-Seed (optional)"],
   chooseArchive: ["Choose an archive", "Archiv auswählen"],
   archiveHint: [

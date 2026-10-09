@@ -99,7 +99,7 @@ describe("world operations with a controlled Docker fixture", () => {
     );
     return finish(op.id);
   }
-  async function archive(entries: Record<string, string>) {
+  async function archive(entries: Record<string, string | Buffer>) {
     const zip = new yazl.ZipFile(),
       chunks: Buffer[] = [];
     for (const [name, text] of Object.entries(entries))
@@ -544,6 +544,111 @@ describe("world operations with a controlled Docker fixture", () => {
         path.join(instance.servers.paths.server(server.id), "config"),
       ),
     ).not.toContain("client.toml");
+  });
+  it("imports an ATM-style NeoForge server ZIP without running its host scripts", async () => {
+    const installer = await archive({
+      "install_profile.json": JSON.stringify({
+        minecraft: "26.1.2",
+        version: "neoforge-26.1.2.109",
+      }),
+    });
+    const mod = await archive({
+      "META-INF/neoforge.mods.toml": "[[mods]]",
+      "example/Mod.class": "fixture",
+    });
+    const nested = "META-INF/jarjar/mezz_config.jar";
+    const jarJar = await archive({
+      "META-INF/jarjar/metadata.json": JSON.stringify({
+        jars: [{ path: nested }],
+      }),
+      [nested]: mod,
+    });
+    const pack = await archive({
+      "neoforge-26.1.2.109-installer.jar": installer,
+      "mods/regular.jar": mod,
+      "mods/mezz_config-standalone.jar": jarJar,
+      "config/atm.toml": "enable = true\n",
+      "kubejs/server_scripts/atm.js": "// game content\n",
+      "server-icon.png": "image fixture",
+      "startserver.sh": "exit 99\n",
+      "user_jvm_args.txt": "-Xmx100G\n",
+      "eula.txt": "eula=false\n",
+      "server.properties": "server-port=1\n",
+    });
+    const base = `/api/v1/servers/${server.id}/upload-sessions`;
+    const created = await instance.app.inject({
+      method: "POST",
+      url: base,
+      headers,
+      payload: {
+        kind: "modpack",
+        confirm: true,
+        files: [{ name: "ServerFiles-0.10.0-beta.zip", size: pack.length }],
+      },
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const id = created.json().id as string;
+    const hash = createHash("sha256").update(pack).digest("hex");
+    const part = await instance.app.inject({
+      method: "PUT",
+      url: `${base}/${id}/files/0`,
+      headers: {
+        ...headers,
+        "content-type": "application/octet-stream",
+        "x-upload-offset": "0",
+        "x-upload-sha256": hash,
+      },
+      payload: pack,
+    });
+    expect(part.statusCode, part.body).toBe(200);
+    const checked = await instance.app.inject({
+      method: "POST",
+      url: `${base}/${id}/files/0/validate`,
+      headers,
+      payload: { sha256: hash },
+    });
+    expect(checked.statusCode, checked.body).toBe(200);
+    const finished = await instance.app.inject({
+      method: "POST",
+      url: `${base}/${id}/finish`,
+      headers,
+      payload: {},
+    });
+    expect(finished.statusCode, finished.body).toBe(202);
+    const operation = await finish(finished.json().operation.id);
+    expect(operation.status, operation.error ?? undefined).toBe("SUCCEEDED");
+    const config = instance.servers.get(server.id).config;
+    expect(config).toMatchObject({
+      software: "NEOFORGE",
+      version: "26.1.2",
+      loaderVersion: "26.1.2.109",
+      serverSource: "upload",
+      java: "auto",
+    });
+    const root = instance.servers.paths.server(server.id);
+    expect(await readFile(path.join(root, "server-installer.jar"))).toEqual(
+      installer,
+    );
+    expect(await readFile(path.join(root, "config/atm.toml"), "utf8")).toBe(
+      "enable = true\n",
+    );
+    expect(
+      await readFile(path.join(root, "kubejs/server_scripts/atm.js"), "utf8"),
+    ).toBe("// game content\n");
+    expect(
+      instance.store
+        .content(server.id)
+        .map((item) => item.filename)
+        .sort(),
+    ).toEqual(["mods/mezz_config-standalone.jar", "mods/regular.jar"]);
+    for (const name of ["startserver.sh", "user_jvm_args.txt"])
+      await expect(readFile(path.join(root, name))).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+    expect(await readFile(path.join(root, "eula.txt"), "utf8")).toBe(
+      "eula=true\n",
+    );
+    expect(instance.store.backups(server.id)).toHaveLength(1);
   });
   it("rejects a whole invalid or duplicate JAR batch before stopping the server", async () => {
     const jar = await archive({ "example/Mod.class": "fixture" });

@@ -84,6 +84,34 @@ world goes to the configured Java level directory or Bedrock `worlds/<level-name
 A previously running server restarts and is checked; failure restores the previous
 world. Invalid world formats are rejected before touching the current server.
 
+## Import an All the Mods server pack
+
+Download the **ServerFiles ZIP** from the pack's CurseForge Files page. For
+[ATM-11 0.10.0-beta](https://www.curseforge.com/minecraft/modpacks/all-the-mods-11/files/9053394),
+this is `ServerFiles-0.10.0-beta.zip` for Minecraft 26.1.2, not the client
+modpack ZIP or the GitHub source repository. The server ZIP already contains
+the NeoForge installer, mods, configuration and KubeJS content. It does not
+need a CurseForge API key because the content is inside the downloaded ZIP.
+
+In **Create a world**, choose Java and **A whole new adventure**. Select the
+matching Forge/NeoForge software and Minecraft version, give the server enough
+RAM (ATM-11's script recommends an 8 GiB heap), and leave Java on Auto. Skip
+the optional individual mod step. At **Import a modpack**, select the complete
+ServerFiles ZIP. MineMate reads the exact Minecraft and loader versions from
+its installer, checks every mod JAR, and installs the pack as one recoverable
+operation. The installer must not also be uploaded as a mod or as a separate
+server JAR. Existing Java worlds can use **Inventory → Upload mod / plugin JARs
+→ Upload type: Modpack**;
+their previous mod/config content is replaced after a recovery point is saved.
+
+MineMate imports game content such as `mods/`, `config/`, `defaultconfigs/`
+and `kubejs/`. It uses its own server settings, EULA and Java memory limit;
+bundled host startup scripts, JVM argument files and preinstalled libraries
+are not run or imported. Minecraft 26.x selects Java 25 automatically. Some
+modpacks need **Allow flight** enabled in server settings. Other ATM versions
+are accepted when their server ZIP contains one recognizable Forge/NeoForge
+installer and a `mods/` directory; use the matching client pack to join.
+
 ## Progress and limits
 
 The dialog displays acknowledged transfer percentage, the current filename,

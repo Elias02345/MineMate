@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import yazl from "yazl";
@@ -51,7 +51,10 @@ function provider(
 describe("content resolution and retention", () => {
   it("names the rejected JAR and keeps a NeoForge installer out of mods", async () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), "minemate-jars-"));
-    const makeJar = async (name: string, entries: Record<string, string>) => {
+    const makeJar = async (
+      name: string,
+      entries: Record<string, string | Buffer>,
+    ) => {
       const zip = new yazl.ZipFile();
       for (const [entry, data] of Object.entries(entries))
         zip.addBuffer(Buffer.from(data), entry);
@@ -94,6 +97,28 @@ describe("content resolution and retention", () => {
       await expect(
         validateJar(mod, "good.jar", neoForge, false),
       ).resolves.toBeUndefined();
+      const nestedPath = "META-INF/jarjar/mezz_config.jar";
+      const nested = await makeJar("nested.jar", {
+        "META-INF/neoforge.mods.toml": "[[mods]]",
+        "example/Config.class": "class fixture",
+      });
+      const standalone = await makeJar("standalone.jar", {
+        "META-INF/jarjar/metadata.json": JSON.stringify({
+          jars: [{ path: nestedPath }],
+        }),
+        [nestedPath]: await readFile(nested),
+      });
+      await expect(
+        validateJar(standalone, "standalone.jar", neoForge, false),
+      ).resolves.toBeUndefined();
+      const missing = await makeJar("missing.jar", {
+        "META-INF/jarjar/metadata.json": JSON.stringify({
+          jars: [{ path: nestedPath }],
+        }),
+      });
+      await expect(
+        validateJar(missing, "missing.jar", neoForge, false),
+      ).rejects.toMatchObject({ code: "JARJAR" });
     } finally {
       await rm(directory, { recursive: true, force: true });
     }

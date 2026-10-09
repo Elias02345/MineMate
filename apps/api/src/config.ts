@@ -33,7 +33,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     secureCookies: env.MINEMATE_SECURE_COOKIES === "true",
     trustProxy: env.MINEMATE_TRUST_PROXY === "true",
     webRoot: path.resolve("apps/web/dist"),
-    version: "0.4.3",
+    version: "0.4.4",
     curseforgeKey: env.CURSEFORGE_API_KEY ?? "",
     gatewayBind: env.MINEMATE_GAME_BIND_ADDRESS ?? "0.0.0.0",
     disableGateway: env.MINEMATE_DISABLE_GATEWAY === "true",

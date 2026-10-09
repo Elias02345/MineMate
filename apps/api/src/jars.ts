@@ -57,7 +57,7 @@ async function validateJarContents(
         "This is a Forge/NeoForge installer, not a mod. Select it only under Server installation.",
       );
     if (
-      !entries.some(
+      entries.some(
         (e) =>
           /\.class$/i.test(e.name) ||
           [
@@ -69,11 +69,52 @@ async function validateJarContents(
           ].includes(e.name),
       )
     )
-      throw new AppError(
-        "JAR",
-        "This JAR has no Java classes or recognized mod/plugin metadata. Select the actual mod or plugin JAR for this server.",
+      return;
+    // Forge and NeoForge also publish standalone Jar-in-Jar containers. Their
+    // classes and mod descriptor live in the referenced nested JAR, not here.
+    if (
+      ["FORGE", "NEOFORGE"].includes(config.software) &&
+      entries.some((e) => e.name === "META-INF/jarjar/metadata.json")
+    ) {
+      let metadata: { jars?: { path?: unknown }[] };
+      try {
+        metadata = JSON.parse(
+          (await readArchiveMember(
+            file,
+            "META-INF/jarjar/metadata.json",
+            128 * 1024,
+          )) ?? "",
+        ) as typeof metadata;
+      } catch {
+        throw new AppError(
+          "JARJAR",
+          "This JAR has invalid Jar-in-Jar metadata.",
+        );
+      }
+      const members = new Set(
+        entries.filter((e) => !e.directory && e.bytes > 0).map((e) => e.name),
       );
-    return;
+      if (
+        !Array.isArray(metadata?.jars) ||
+        metadata.jars.length === 0 ||
+        !metadata.jars.every(
+          (jar) =>
+            typeof jar?.path === "string" &&
+            jar.path.startsWith("META-INF/jarjar/") &&
+            jar.path.toLowerCase().endsWith(".jar") &&
+            members.has(jar.path),
+        )
+      )
+        throw new AppError(
+          "JARJAR",
+          "This Jar-in-Jar manifest does not reference an included mod JAR.",
+        );
+      return;
+    }
+    throw new AppError(
+      "JAR",
+      "This JAR has no Java classes or recognized mod/plugin metadata. Select the actual mod or plugin JAR for this server.",
+    );
   }
   const profile = await readArchiveMember(file, "install_profile.json");
   if (["FORGE", "NEOFORGE"].includes(config.software)) {

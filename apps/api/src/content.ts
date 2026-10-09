@@ -175,6 +175,7 @@ export class Content {
         await extractArchive(upload, staging);
         let configuration = s.config;
         const versions: ContentVersion[] = [];
+        let serverPack: { root: string; installer: string } | undefined;
         const indexFile = await safePath(staging, "modrinth.index.json", true);
         try {
           const raw = await readFile(indexFile, "utf8"),
@@ -201,31 +202,42 @@ export class Content {
           }
         } catch (e) {
           if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
-          const manifest = cursepackSchema.parse(
-            JSON.parse(
-              await readFile(await safePath(staging, "manifest.json"), "utf8"),
-            ),
-          );
-          const primary =
-            manifest.minecraft.modLoaders.find((l) => l.primary) ??
-            manifest.minecraft.modLoaders[0];
-          if (!primary)
-            throw new AppError(
-              "MODPACK_LOADER",
-              "This pack has no server loader.",
+          let manifest: string | undefined;
+          try {
+            manifest = await readFile(
+              await safePath(staging, "manifest.json"),
+              "utf8",
             );
-          const [loader, ...loaderVersion] = primary.id.split("-");
-          configuration = this.packConfig(s.config, {
-            minecraft: manifest.minecraft.version,
-            [loader + "-loader"]: loaderVersion.join("-"),
-          });
-          const provider = this.provider("curseforge");
-          for (const f of manifest.files) {
-            const v = await provider.version(
-              String(f.fileID),
-              String(f.projectID),
-            );
-            versions.push(v);
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+          }
+          if (manifest !== undefined) {
+            const index = cursepackSchema.parse(JSON.parse(manifest));
+            const primary =
+              index.minecraft.modLoaders.find((l) => l.primary) ??
+              index.minecraft.modLoaders[0];
+            if (!primary)
+              throw new AppError(
+                "MODPACK_LOADER",
+                "This pack has no server loader.",
+              );
+            const [loader, ...loaderVersion] = primary.id.split("-");
+            configuration = this.packConfig(s.config, {
+              minecraft: index.minecraft.version,
+              [loader + "-loader"]: loaderVersion.join("-"),
+            });
+            const provider = this.provider("curseforge");
+            for (const f of index.files) {
+              const v = await provider.version(
+                String(f.fileID),
+                String(f.projectID),
+              );
+              versions.push(v);
+            }
+          } else {
+            const pack = await this.inspectServerPack(staging, s.config, phase);
+            configuration = pack.config;
+            serverPack = pack;
           }
         }
         phase("Saving the current world and inventory");
@@ -242,6 +254,8 @@ export class Content {
           const files = await this.download(versions, s.id);
           await this.apply(s, files, actor, "modpack");
         }
+        if (serverPack)
+          await this.applyServerPack(s, serverPack, configuration);
         for (const area of ["resolved", "overrides", "server-overrides"]) {
           const from = path.join(staging, area);
           try {
@@ -713,6 +727,157 @@ export class Content {
     }
     await this.manifest(s);
     return this.servers.store.content(s.id);
+  }
+  private async inspectServerPack(
+    staging: string,
+    base: ServerConfig,
+    phase: (text: string) => void,
+  ) {
+    if (base.edition !== "JAVA")
+      throw new AppError(
+        "MODPACK_EDITION",
+        "Server packs require a Java world.",
+      );
+    const files = await walk(staging),
+      candidates = files.filter(
+        (file) =>
+          /^(?:neo)?forge-[^/]+-installer\.jar$/i.test(
+            path.posix.basename(file.path),
+          ) && file.path.split("/").length <= 2,
+      );
+    if (candidates.length !== 1)
+      throw new AppError(
+        "MODPACK_FORMAT",
+        "Choose a Modrinth/CurseForge pack or a server ZIP with one Forge/NeoForge installer and a mods folder.",
+      );
+    const relative = candidates[0]!.path,
+      wrapper = path.posix.dirname(relative),
+      root = wrapper === "." ? staging : await safePath(staging, wrapper),
+      installer = await safePath(staging, relative),
+      raw = await readArchiveMember(installer, "install_profile.json");
+    let profile: { minecraft?: unknown; path?: unknown; version?: unknown };
+    try {
+      profile = JSON.parse(raw ?? "") as typeof profile;
+    } catch {
+      throw new AppError(
+        "MODPACK_INSTALLER",
+        "The server pack's loader installer has no valid profile.",
+      );
+    }
+    if (!profile || typeof profile !== "object")
+      throw new AppError(
+        "MODPACK_INSTALLER",
+        "The server pack's loader installer has no valid profile.",
+      );
+    const ids = [profile.path, profile.version].filter(
+        (value): value is string => typeof value === "string",
+      ),
+      neo = ids
+        .map(
+          (id) =>
+            /^net\.neoforged:neoforge:(.+)$/.exec(id)?.[1] ??
+            /^neoforge-(.+)$/.exec(id)?.[1],
+        )
+        .find(Boolean),
+      forge = ids
+        .map(
+          (id) =>
+            /^net\.minecraftforge:forge:(.+)$/.exec(id)?.[1] ??
+            /^forge-(.+)$/.exec(id)?.[1],
+        )
+        .find(Boolean);
+    if (typeof profile.minecraft !== "string" || (!neo && !forge))
+      throw new AppError(
+        "MODPACK_LOADER",
+        "The server pack has no recognizable Forge/NeoForge version.",
+      );
+    const config = serverConfigSchema.parse({
+      ...base,
+      edition: "JAVA",
+      software: neo ? "NEOFORGE" : "FORGE",
+      version: profile.minecraft,
+      loaderVersion: neo ?? forge,
+      serverSource: "upload",
+      java: "auto",
+    });
+    await validateJar(installer, path.posix.basename(relative), config, true);
+    const modFiles = (
+      await walk(await safePath(root, "mods")).catch((error: unknown) => {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+        throw error;
+      })
+    ).filter((file) => file.path.toLowerCase().endsWith(".jar"));
+    if (modFiles.length === 0)
+      throw new AppError("MODPACK_FORMAT", "The server pack has no mod JARs.");
+    for (const [index, file] of modFiles.entries()) {
+      if (file.path.includes("/"))
+        throw new AppError(
+          "MODPACK_FORMAT",
+          "Put mod JARs directly in the server pack's mods folder.",
+        );
+      phase(
+        `Validating server pack mod ${index + 1}/${modFiles.length}: ${file.path}`,
+      );
+      await validateJar(
+        await safePath(root, "mods/" + file.path),
+        file.path,
+        config,
+        false,
+      );
+    }
+    return { root, installer, config };
+  }
+  private async applyServerPack(
+    s: Server,
+    pack: { root: string; installer: string },
+    config: ServerConfig,
+  ) {
+    const target = this.servers.paths.server(s.id);
+    // Only game content is imported. The pack's host scripts, EULA, JVM flags,
+    // server.properties and preinstalled libraries cannot take over MineMate.
+    for (const area of [
+      "mods",
+      "config",
+      "defaultconfigs",
+      "kubejs",
+      "openloader",
+      "global_packs",
+      "resourcepacks",
+      "scripts",
+    ]) {
+      let files: { path: string; bytes: number }[];
+      try {
+        files = await walk(await safePath(pack.root, area));
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        files = [];
+      }
+      await rm(await safePath(target, area, true), {
+        recursive: true,
+        force: true,
+      });
+      for (const file of files) {
+        const relative = area + "/" + file.path,
+          destination = await safePath(target, relative, true);
+        await mkdir(path.dirname(destination), {
+          recursive: true,
+          mode: 0o700,
+        });
+        await copyFile(await safePath(pack.root, relative), destination);
+      }
+    }
+    await copyFile(
+      pack.installer,
+      await safePath(target, serverJarFilename(config), true),
+    );
+    try {
+      await copyFile(
+        await safePath(pack.root, "server-icon.png"),
+        await safePath(target, "server-icon.png", true),
+      );
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
   }
   private packConfig(
     base: ServerConfig,

@@ -15,7 +15,7 @@ test.beforeEach(async ({ context }, info) => {
   });
 });
 
-async function archive(entries: Record<string, string>) {
+async function archive(entries: Record<string, string | Buffer>) {
   const zip = new yazl.ZipFile(),
     chunks: Buffer[] = [];
   for (const [name, text] of Object.entries(entries))
@@ -225,6 +225,71 @@ test("creates NeoForge with 201 wizard mods and adds 121 mods from Inventory", a
       await page.request.get(`/api/v1/servers/${serverId}/content`)
     ).json(),
   ).toHaveLength(322);
+});
+
+test("creates ATM-style NeoForge from its server ZIP in the wizard", async ({
+  page,
+}) => {
+  await login(page);
+  const installer = await archive({
+    "install_profile.json": JSON.stringify({
+      minecraft: "26.1.2",
+      version: "neoforge-26.1.2.109",
+    }),
+  });
+  const mod = await archive({
+    "META-INF/neoforge.mods.toml": "[[mods]]",
+  });
+  const pack = await archive({
+    "neoforge-26.1.2.109-installer.jar": installer,
+    "mods/example.jar": mod,
+    "config/atm.toml": "enabled = true",
+    "kubejs/server_scripts/atm.js": "// pack content",
+    "startserver.sh": "exit 99",
+  });
+  await page
+    .getByRole("button", { name: "Create a world", exact: true })
+    .first()
+    .click();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByRole("button", { name: /A whole new adventure/ }).click();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "Server software", exact: true })
+    .selectOption("NEOFORGE");
+  await page.getByLabel("Enter a specific version").fill("26.1.2");
+  for (let i = 0; i < 3; i++)
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "A fresh beginning, or a familiar home?" })
+    .selectOption("pack");
+  await expect(page.getByText(/official ServerFiles ZIP/)).toBeVisible();
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "ServerFiles-0.10.0-beta.zip",
+    mimeType: "application/zip",
+    buffer: pack,
+  });
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByLabel("I have read and accept").check();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByLabel("Give your world a name").fill("ATM 11 fixture");
+  await page.getByRole("button", { name: "Craft this world" }).click();
+  await expect(
+    page.getByRole("heading", { name: "ATM 11 fixture", exact: true }),
+  ).toBeVisible({ timeout: 30000 });
+  const id = page.url().split("/").at(-1)!;
+  const server = (await (
+    await page.request.get(`/api/v1/servers/${id}`)
+  ).json()) as Server;
+  expect(server.config).toMatchObject({
+    software: "NEOFORGE",
+    version: "26.1.2",
+    loaderVersion: "26.1.2.109",
+    serverSource: "upload",
+    java: "auto",
+  });
+  await page.getByRole("tab", { name: "Inventory", exact: true }).click();
+  await expect(page.locator(".inventory-list")).toContainText("example.jar");
 });
 
 test("custom JAR, world and bulk mods retry only the failed batch without duplicating the server", async ({

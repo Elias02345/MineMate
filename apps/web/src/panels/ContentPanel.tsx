@@ -509,6 +509,7 @@ export function UploadDialog({
           {(kind === "world" || kind === "world-folder") && (
             <MineNotice>{t("worldUploadHint")}</MineNotice>
           )}
+          {kind === "modpack" && <MineNotice>{t("packImportHint")}</MineNotice>}
           <UploadPicker
             files={files}
             onChange={setFiles}
