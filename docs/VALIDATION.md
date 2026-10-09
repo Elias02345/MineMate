@@ -12,6 +12,34 @@ byte-for-byte public release download checks and the full production Compose
 smoke against that published amd64 image also pass. GitHub names the environment
 asset `default.env.example`; download it as `.env`.
 
+## ATM10 8.2 upload, recovery and real startup (0.4.7)
+
+The official [ATM10 8.2 ServerFiles ZIP](https://www.curseforge.com/minecraft/modpacks/all-the-mods-10/files/8945094)
+is 1,218,983,508 bytes (SHA-256
+`8f1ef6e6969924bc18a7194782ea9266f7a0bde41141dd94776b5225316d3278`).
+The outer ZIP has 2,519 entries without duplicate paths. The controlled
+MineMate import recognized Minecraft 1.21.1 and NeoForge 21.1.251, validated
+and installed all 464 mod JARs, and started its controlled runtime.
+
+A separate temporary real Docker server used the exact pack content and the
+pinned `itzg/minecraft-server:2026.9.2-java21` image. With an 8 GiB Java heap
+and MineMate's old 8.5 GiB container limit, Docker reported `OOMKilled=true`
+and exit 137 during mod loading. With the same heap and a 12 GiB limit,
+Minecraft reached `Done (27.095s)` and `mc-monitor status` reported
+Minecraft 1.21.1 on port 25565. Container use was about 9.8 GiB at readiness.
+Cloud-only proxy and CA settings were needed for the installer downloads in
+this environment. No client join was tested. The test server accepted the
+Minecraft EULA only under the user's prior authorization for temporary tests.
+
+The code now gives large Java modpacks more native memory outside the heap and
+checks host capacity. It allows 20 minutes for initial server-pack readiness.
+A regression test reproduces the misleading “Upload your confirmed custom
+server JAR” message that occurred when recovery tried to start an uninstalled
+provisional ATM world. Recovery now leaves that world stopped and shows the
+original failure. A checked ServerFiles ZIP remains staged for a retry in the
+same wizard, and the browser/server recheck its hash without transferring it
+again.
+
 ## Duplicate resources in ATM mod JARs (0.4.6)
 
 The exact published `ars_nouveau-1.21.1-5.13.1.jar` (SHA-512

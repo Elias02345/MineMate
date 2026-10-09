@@ -15,7 +15,10 @@ import {
   type Server,
   type ServerConfig,
 } from "../../../packages/shared/src/index.ts";
-import { Runtime } from "../../../packages/minecraft/src/index.ts";
+import {
+  Runtime,
+  runtimeMemoryMb,
+} from "../../../packages/minecraft/src/index.ts";
 import {
   assertOwned,
   labels,
@@ -192,10 +195,11 @@ export class Servers {
           "BEDROCK_ARCH",
           "Bedrock Dedicated Server needs an amd64 Docker host.",
         );
-      if (c.memoryMb > info.MemTotal / 1024 ** 2)
+      const requiredMemoryMb = runtimeMemoryMb(c);
+      if (requiredMemoryMb > info.MemTotal / 1024 ** 2)
         throw new AppError(
           "MEMORY",
-          "This world requests more memory than the host has.",
+          `This world needs ${requiredMemoryMb} MB of host memory including runtime overhead. Lower its Java memory setting or use a larger host.`,
         );
       const protocol = c.edition === "JAVA" ? "TCP" : "UDP",
         taken = new Set(
@@ -289,6 +293,12 @@ export class Servers {
         "Accept the Minecraft agreement before starting.",
       );
     await this.host.prove();
+    const availableMemoryMb = (await this.docker.ping()).MemTotal / 1024 ** 2;
+    if (runtimeMemoryMb(s.config) > availableMemoryMb)
+      throw new AppError(
+        "MEMORY",
+        `This world needs ${runtimeMemoryMb(s.config)} MB of host memory including runtime overhead. Lower its Java memory setting or use a larger host.`,
+      );
     await this.docker.ensureNetwork(this.config.network);
     if (usesUploadedServerJar(s.config)) {
       try {
@@ -367,7 +377,7 @@ export class Servers {
       }
     }
     const image =
-      process.env.MINEMATE_RUNTIME_IMAGE ?? "ghcr.io/elias02345/minemate:0.4.6";
+      process.env.MINEMATE_RUNTIME_IMAGE ?? "ghcr.io/elias02345/minemate:0.4.7";
     if (!/^[a-zA-Z0-9./_-]+:[a-zA-Z0-9._-]+$/.test(image))
       throw new AppError(
         "GATEWAY_IMAGE",
@@ -504,13 +514,31 @@ export class Servers {
       }
       await new Promise((r) => setTimeout(r, 2000));
     }
+    if (s.containerId) {
+      try {
+        const log = (await this.docker.logs(s.containerId)).replace(
+          /(rcon\.password\s*[=:]\s*)\S+/gi,
+          "$1[redacted]",
+        );
+        await atomicWrite(
+          this.paths.server(s.id, "metadata") + "/failure.log",
+          log.slice(-32000),
+        );
+      } catch {
+        /* Keep the readiness error even if logs are unavailable. */
+      }
+    }
     throw new AppError(
       "READINESS_TIMEOUT",
-      "Minecraft has not become ready yet. Open the console to inspect the download or startup.",
+      "Minecraft has not become ready yet. Open Repair for the preserved startup log.",
       409,
     );
   }
-  async replaceContainer(s: Server, c: ServerConfig) {
+  async replaceContainer(
+    s: Server,
+    c: ServerConfig,
+    options: { deferContainer?: boolean } = {},
+  ) {
     await this.stop(s);
     if (s.containerId) {
       await this.runtime.remove(s.containerId, s.id);
@@ -519,7 +547,7 @@ export class Servers {
     s.config = c;
     s.name = c.name;
     this.store.saveServer(s);
-    await this.ensureContainer(s);
+    if (!options.deferContainer) await this.ensureContainer(s);
   }
 }
 

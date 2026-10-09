@@ -31,7 +31,7 @@ Internet. See [security](SECURITY.md).
 ## Install the published image
 
 Download `docker-compose.yml` and `default.env.example` from the
-[v0.4.6 release](https://github.com/Elias02345/MineMate/releases/tag/v0.4.6).
+[v0.4.7 release](https://github.com/Elias02345/MineMate/releases/tag/v0.4.7).
 Rename `default.env.example` to `.env` and set `MINEMATE_LAN_IP` to the Docker host's
 LAN address. These are the only files needed for deployment:
 
@@ -39,7 +39,7 @@ LAN address. These are the only files needed for deployment:
 docker compose up -d --wait
 ```
 
-Production Compose uses `ghcr.io/elias02345/minemate:0.4.6` and contains no build
+Production Compose uses `ghcr.io/elias02345/minemate:0.4.7` and contains no build
 context. Pulls are public and need no registry login. The release workflow verifies
 an anonymous pull before publishing its downloadable configuration files.
 

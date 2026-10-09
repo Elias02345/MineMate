@@ -670,6 +670,139 @@ describe("world operations with a controlled Docker fixture", () => {
     );
     expect(instance.store.backups(server.id)).toHaveLength(1);
   });
+  it("restores an uninstalled ATM world after a runtime failure and retries its ZIP", async () => {
+    const created = await instance.app.inject({
+      method: "POST",
+      url: "/api/v1/servers",
+      headers,
+      payload: {
+        name: "ATM retry fixture",
+        edition: "JAVA",
+        software: "NEOFORGE",
+        version: "1.21.1",
+        serverSource: "upload",
+        memoryMb: 1024,
+        cpu: 1,
+        eula: true,
+      },
+    });
+    expect(created.statusCode, created.body).toBe(202);
+    const worldId = created.json().server.id as string;
+    expect((await finish(created.json().operation.id)).status).toBe(
+      "SUCCEEDED",
+    );
+    const world = instance.servers.get(worldId);
+    expect(world.containerId).toBeNull();
+    const installer = await archive({
+      "install_profile.json": JSON.stringify({
+        minecraft: "1.21.1",
+        version: "neoforge-21.1.200",
+      }),
+    });
+    const mod = await archive({
+      "META-INF/neoforge.mods.toml": "[[mods]]",
+    });
+    const pack = await archive({
+      "neoforge-21.1.200-installer.jar": installer,
+      "mods/example.jar": mod,
+    });
+    const filename = "ServerFiles-8.2.zip";
+    const base = `/api/v1/servers/${worldId}/upload-sessions`;
+    const session = await instance.app.inject({
+      method: "POST",
+      url: base,
+      headers,
+      payload: {
+        kind: "atm",
+        confirm: true,
+        files: [{ name: filename, size: pack.length }],
+      },
+    });
+    expect(session.statusCode, session.body).toBe(201);
+    const sessionId = session.json().id as string;
+    const checksum = createHash("sha256").update(pack).digest("hex");
+    const part = await instance.app.inject({
+      method: "PUT",
+      url: `${base}/${sessionId}/files/0`,
+      headers: {
+        ...headers,
+        "content-type": "application/octet-stream",
+        "x-upload-offset": "0",
+        "x-upload-sha256": checksum,
+      },
+      payload: pack,
+    });
+    expect(part.statusCode, part.body).toBe(200);
+    const validate = () =>
+      instance.app.inject({
+        method: "POST",
+        url: `${base}/${sessionId}/files/0/validate`,
+        headers,
+        payload: { sha256: checksum },
+      });
+    expect((await validate()).statusCode).toBe(200);
+    const submit = () =>
+      instance.app.inject({
+        method: "POST",
+        url: `${base}/${sessionId}/finish`,
+        headers,
+        payload: {},
+      });
+    const pull = vi
+      .spyOn(instance.servers.docker, "pull")
+      .mockRejectedValueOnce(new Error("Runtime download failed"));
+    const first = await submit();
+    expect(first.statusCode, first.body).toBe(202);
+    const failed = await finish(first.json().operation.id);
+    expect(failed.status).toBe("FAILED");
+    expect(failed.error).toBe("Runtime download failed");
+    expect(instance.servers.get(worldId).containerId).toBeNull();
+    const staged = path.join(
+      instance.servers.paths.server(worldId, "uploads"),
+      `session-${sessionId}/0.part`,
+    );
+    expect(await readFile(staged)).toEqual(pack);
+    await expect(
+      readFile(
+        path.join(
+          instance.servers.paths.server(worldId),
+          "server-installer.jar",
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+    pull.mockRestore();
+    const changed = Buffer.from(pack);
+    changed[0] = changed[0]! ^ 1;
+    await writeFile(staged, changed);
+    const rejectedRetry = await submit();
+    expect(rejectedRetry.statusCode, rejectedRetry.body).toBe(422);
+    await writeFile(staged, pack);
+    expect((await validate()).statusCode).toBe(200);
+    const second = await submit();
+    expect(second.statusCode, second.body).toBe(202);
+    expect(second.json().operation.id).not.toBe(failed.id);
+    const retried = await finish(second.json().operation.id);
+    expect(retried.status, retried.error ?? undefined).toBe("SUCCEEDED");
+    expect(instance.servers.get(worldId).config).toMatchObject({
+      version: "1.21.1",
+      software: "NEOFORGE",
+      loaderVersion: "21.1.200",
+      serverSource: "upload",
+    });
+    expect(
+      await readFile(
+        path.join(
+          instance.servers.paths.server(worldId),
+          "server-installer.jar",
+        ),
+      ),
+    ).toEqual(installer);
+    expect(
+      instance.store
+        .servers(instance.config.lanIp)
+        .filter((s) => s.name === "ATM retry fixture"),
+    ).toHaveLength(1);
+  });
   it("rejects a whole invalid or duplicate JAR batch before stopping the server", async () => {
     const jar = await archive({ "example/Mod.class": "fixture" });
     for (const files of [

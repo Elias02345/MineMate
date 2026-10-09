@@ -655,6 +655,7 @@ export function Wizard({
                   : t("hostHint")}
               </p>
               <MineNotice>{t("resourceWarning")}</MineNotice>
+              {atm && <MineNotice>{t("atmMemoryHint")}</MineNotice>}
             </>
           )}
           {currentStep === "wizardWorld" && (

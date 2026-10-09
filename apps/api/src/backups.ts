@@ -133,7 +133,11 @@ export class Backups {
     this.servers.state(s, "STOPPED");
     return b;
   }
-  async restore(s: Server, id: string) {
+  async restore(
+    s: Server,
+    id: string,
+    options: { deferContainer?: boolean } = {},
+  ) {
     const b = this.servers.store.backups(s.id).find((b) => b.id === id);
     if (!b)
       throw new AppError(
@@ -195,7 +199,7 @@ export class Backups {
         s.id,
       );
     }
-    await this.servers.replaceContainer(s, b.config);
+    await this.servers.replaceContainer(s, b.config, options);
     await this.servers.ensureGateway(s);
     const manifest = JSON.parse(
       await readFile(

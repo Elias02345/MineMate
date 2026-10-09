@@ -29,6 +29,7 @@ import {
   AppError,
   serverConfigSchema,
   serverJarFilename,
+  usesUploadedServerJar,
   now,
   type Server,
   type ServerConfig,
@@ -167,9 +168,27 @@ export class Content {
           String(op.payload.filename),
         );
       let recoveryId: string | null = null;
+      let completed = false;
       const running = s.desired === "RUNNING",
         staging =
           servers.paths.server(s.id, "imports") + "/pack-" + randomUUID();
+      let restoreUninstalled =
+        op.payload.kind === "atm" &&
+        !s.containerId &&
+        usesUploadedServerJar(s.config);
+      if (restoreUninstalled) {
+        const installer = await safePath(
+          servers.paths.server(s.id),
+          serverJarFilename(s.config),
+          true,
+        );
+        try {
+          await stat(installer);
+          restoreUninstalled = false;
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        }
+      }
       try {
         phase("Validating the modpack archive");
         await extractArchive(upload, staging);
@@ -303,23 +322,35 @@ export class Content {
         await servers.replaceContainer(s, configuration);
         phase("Verifying the imported server pack");
         await servers.start(s);
-        await servers.waitReady(s);
+        await servers.waitReady(s, serverPack ? 20 * 60 * 1000 : 240000);
         if (!running && op.payload.kind !== "atm") await servers.stop(s);
         servers.store.audit(actor, s.id, "modpack.imported");
+        completed = true;
         return { backupId: recovery.id, config: configuration };
       } catch (e) {
         if (recoveryId) {
           phase("Restoring the previous pack and world");
-          await servers.stop(s);
-          await backups.restore(s, recoveryId);
-          if (running) {
-            await servers.start(s);
-            await servers.waitReady(s);
+          try {
+            await servers.stop(s);
+            await backups.restore(s, recoveryId, {
+              deferContainer: restoreUninstalled,
+            });
+            if (running) {
+              await servers.start(s);
+              await servers.waitReady(s);
+            }
+          } catch (rollbackError) {
+            servers.fail(s, rollbackError);
+            throw new AppError(
+              "MODPACK_RECOVERY",
+              `Import failed: ${e instanceof Error ? e.message : String(e)}; automatic recovery failed: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`,
+            );
           }
         } else servers.fail(s, e);
         throw e;
       } finally {
-        await rm(upload, { force: true });
+        if (completed || !op.payload.uploadSessionId)
+          await rm(upload, { force: true });
         await rm(staging, { recursive: true, force: true });
       }
     });

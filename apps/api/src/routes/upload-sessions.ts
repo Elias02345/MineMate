@@ -445,8 +445,15 @@ export function registerUploadSessionRoutes(context: RouteContext) {
           await stat(marker(current, index))
             .then(() => true)
             .catch(() => false)
-        )
+        ) {
+          if ((await readFile(marker(current, index), "utf8")) !== expected)
+            throw new AppError(
+              "UPLOAD_HASH",
+              `The checked copy of ${file.name} differs. Select the file again.`,
+              422,
+            );
           return { validated: true };
+        }
         if (["jar", "custom"].includes(current.kind)) {
           const server = world(r, "content");
           const config =
@@ -465,7 +472,7 @@ export function registerUploadSessionRoutes(context: RouteContext) {
           );
         } else if (!["file", "world-folder"].includes(current.kind))
           await inspectArchive(source);
-        await writeFile(marker(current, index), "", {
+        await writeFile(marker(current, index), expected, {
           flag: "wx",
           mode: 0o600,
         });
@@ -502,17 +509,21 @@ export function registerUploadSessionRoutes(context: RouteContext) {
       const s = await load(r);
       return serialized(s.id, async () => {
         const current = await load(r);
-        if (current.operationId)
-          return reply
-            .code(202)
-            .send({ operation: findOperation(current.operationId) });
+        const retryable = (operation?: ReturnType<typeof findOperation>) =>
+          ["atm", "modpack"].includes(current.kind) &&
+          operation?.status === "FAILED";
+        const previousOperation = current.operationId
+          ? findOperation(current.operationId)
+          : undefined;
+        if (current.operationId && !retryable(previousOperation))
+          return reply.code(202).send({ operation: previousOperation });
         const previous = store.get(
           "SELECT * FROM operations WHERE server_id=? AND json_extract(payload,'$.uploadSessionId')=? ORDER BY created_at DESC LIMIT 1",
           current.serverId,
           current.id,
         );
         const existing = previous ? store.operation(previous) : undefined;
-        if (existing) {
+        if (existing && !retryable(existing)) {
           current.operationId = existing.id;
           await save(current);
           return reply.code(202).send({ operation: existing });
@@ -537,6 +548,18 @@ export function registerUploadSessionRoutes(context: RouteContext) {
               "One file is incomplete.",
               409,
             );
+          if (retryable(previousOperation)) {
+            const expected = await readFile(marker(current, i), "utf8");
+            if (
+              !/^[a-f0-9]{64}$/.test(expected) ||
+              (await hashFile(await target(current, i))) !== expected
+            )
+              throw new AppError(
+                "UPLOAD_HASH",
+                `The checksum of ${current.files[i]!.name} does not match. Select the file again.`,
+                422,
+              );
+          }
         }
         const files = current.files.map((f, i) => ({
           filename: `session-${current.id}/${i}.part`,

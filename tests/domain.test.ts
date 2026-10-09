@@ -4,8 +4,10 @@ import {
   javaRuntime,
   transition,
   can,
+  serverConfigSchema,
   type User,
 } from "../packages/shared/src/index.ts";
+import { JavaMinecraftProvider } from "../packages/minecraft/src/index.ts";
 import { assertOwned, labels } from "../packages/docker/src/index.ts";
 import { validateProperties } from "../packages/settings-schema/src/index.ts";
 import { validateEntry } from "../packages/backup/src/archive.ts";
@@ -20,6 +22,27 @@ describe("security and domain boundaries", () => {
     expect(javaRuntime("1.20.5")).toBe("21");
     expect(javaRuntime("1.16.5")).toBe("8");
     expect(javaRuntime("26.1")).toBe("25");
+  });
+  it("reserves native memory outside the heap for large NeoForge packs", () => {
+    const config = serverConfigSchema.parse({
+      name: "ATM 10",
+      edition: "JAVA",
+      software: "NEOFORGE",
+      serverSource: "upload",
+      version: "1.21.1",
+      loaderVersion: "21.1.251",
+      memoryMb: 8192,
+      eula: true,
+    });
+    const spec = new JavaMinecraftProvider().spec("world", config, {
+      installation: "installation",
+      network: "minemate-servers",
+      hostDirectory: "/tmp/world",
+      rconPassword: "fixture",
+    });
+    expect(spec.Env).toContain("MEMORY=8192M");
+    expect(spec.HostConfig.Memory).toBe(12 * 1024 ** 3);
+    expect(spec.Env).toContain("NEOFORGE_INSTALLER=/data/server-installer.jar");
   });
   it("rejects invalid lifecycle transitions", () => {
     expect(transition("STOPPED", "STARTING")).toBe("STARTING");

@@ -92,6 +92,9 @@ this is `ServerFiles-0.10.0-beta.zip` for Minecraft 26.1.2, not the client
 modpack ZIP or the GitHub source repository. The server ZIP already contains
 the NeoForge installer, mods, configuration and KubeJS content. It does not
 need a CurseForge API key because the content is inside the downloaded ZIP.
+The official [ATM10 8.2 ServerFiles ZIP](https://www.curseforge.com/minecraft/modpacks/all-the-mods-10/files/8945094)
+is also supported: MineMate detects Minecraft 1.21.1, NeoForge 21.1.251 and
+all 464 bundled mod JARs.
 
 In **Create a world**, choose **Java → All the Mods (ATM)** and upload the
 complete ServerFiles ZIP in the dedicated ATM step. MineMate creates the world
@@ -104,6 +107,17 @@ JAR or individual mod step. If an upload or import fails, retry in the same
 created world instead of making a duplicate. Existing Java worlds can still use
 **Inventory → Upload mod / plugin JARs → Upload type: Modpack**; their previous
 mod/config content is replaced after a recovery point is saved.
+
+ATM10 8.2 needs more than its 8 GiB Java heap: MineMate reserves another
+4 GiB of container memory for NeoForge, JVM native memory and loading its
+large mod collection. Allow memory for the Docker host and other worlds as
+well. MineMate checks host capacity before creating the world or container.
+The first start of a large pack may take up to 20 minutes. If Minecraft stops
+or times out, open **Repair** in the created world for the preserved startup
+log. The failed import restores the previous world; its verified ServerFiles
+ZIP is retained for 48 hours so clicking **Create this world** again with the
+same file does not retransfer it. The browser and server recheck its SHA-256
+before another import attempt.
 
 Some mod JARs, including `ars_nouveau-1.21.1-5.13.1.jar`, contain repeated
 `META-INF/LICENSE.txt` or `META-INF/NOTICE.txt` entries. MineMate accepts these

@@ -397,6 +397,10 @@ const messages = {
     "Keep enough memory for your host and other worlds.",
     "Lass genug Arbeitsspeicher für den Host und andere Welten frei.",
   ],
+  atmMemoryHint: [
+    "For large ATM packs, the default 8 GB Java heap also needs 4 GB of Docker memory for NeoForge and other native use. Plan at least 12 GB for this world plus memory for the host. The first start can take up to 20 minutes.",
+    "Große ATM-Pakete brauchen zusätzlich zum voreingestellten 8-GB-Java-Speicher 4 GB Docker-Reserve für NeoForge und andere native Nutzung. Plane mindestens 12 GB für diese Welt plus Speicher für den Host ein. Der erste Start kann bis zu 20 Minuten dauern.",
+  ],
   customWarning: [
     "Only upload JARs you trust. They execute inside your Minecraft container.",
     "Lade nur vertrauenswürdige JARs hoch. Sie werden im Minecraft-Container ausgeführt.",

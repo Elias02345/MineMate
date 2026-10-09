@@ -50,7 +50,7 @@ export async function uploadSelection(
   software?: string,
   directory = "",
   phase?: (message: string) => void,
-) {
+): Promise<{ operation: Operation }> {
   const selected = files.map((file) => ({
     name: file.name,
     size: file.size,
@@ -65,6 +65,7 @@ export async function uploadSelection(
   const base = `/servers/${serverId}/upload-sessions`;
   let state: UploadState | undefined;
   let resumeFrom: string | undefined;
+  let retryFailedPack = false;
   try {
     const saved = JSON.parse(localStorage.getItem(key) || "null") as {
       id: string;
@@ -76,12 +77,20 @@ export async function uploadSelection(
   } catch {
     /* The session expired, or storage is unavailable. Start fresh. */
   }
-  if (
-    state?.operation &&
-    ["FAILED", "INTERRUPTED"].includes(state.operation.status)
-  ) {
-    state = undefined;
-    resumeFrom = undefined;
+  if (state?.operation) {
+    if (!["QUEUED", "RUNNING"].includes(state.operation.status)) {
+      retryFailedPack =
+        ["atm", "modpack"].includes(kind) &&
+        state.operation.status === "FAILED" &&
+        state.files.every(
+          (item, index) => item.offset === files[index]!.size && item.validated,
+        );
+      if (retryFailedPack) state = { ...state, operation: undefined };
+      else {
+        state = undefined;
+        resumeFrom = undefined;
+      }
+    }
   }
   if (!state) {
     state = await mutate<UploadState>(base, { ...spec, resumeFrom });
@@ -157,6 +166,22 @@ export async function uploadSelection(
     } catch (error) {
       if (!(error instanceof ApiError) || error.code !== "UPLOAD_HASH")
         throw error;
+      if (retryFailedPack) {
+        try {
+          localStorage.removeItem(key);
+        } catch {
+          /* Private browsing can disable storage. */
+        }
+        return uploadSelection(
+          serverId,
+          kind,
+          files,
+          progress,
+          software,
+          directory,
+          phase,
+        );
+      }
       await mutate(`${base}/${active.id}/files/${index}/reset`);
       active.files[index] = { offset: 0, validated: false };
       report();
@@ -167,13 +192,39 @@ export async function uploadSelection(
     }
     active.files[index]!.validated = true;
   }
-  const result = await mutate<{ operation: Operation }>(
-    `${base}/${active.id}/finish`,
-  );
+  let result: { operation: Operation };
   try {
-    localStorage.removeItem(key);
-  } catch {
-    /* Storage may be disabled. */
+    result = await mutate<{ operation: Operation }>(
+      `${base}/${active.id}/finish`,
+    );
+  } catch (error) {
+    if (
+      !retryFailedPack ||
+      !(error instanceof ApiError) ||
+      error.code !== "UPLOAD_HASH"
+    )
+      throw error;
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      /* Private browsing can disable storage. */
+    }
+    return uploadSelection(
+      serverId,
+      kind,
+      files,
+      progress,
+      software,
+      directory,
+      phase,
+    );
+  }
+  if (!["atm", "modpack"].includes(kind)) {
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      /* Private browsing can disable storage. */
+    }
   }
   return result;
 }

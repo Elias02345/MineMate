@@ -14,6 +14,15 @@ import {
 } from "../../docker/src/index.ts";
 export const JAVA_IMAGE_VERSION = "2026.9.2";
 export const BEDROCK_IMAGE = "itzg/minecraft-bedrock-server:2026.9.2";
+/** Java's native memory and the mod loader need room outside the configured heap. */
+export function runtimeMemoryMb(c: ServerConfig) {
+  if (c.edition === "BEDROCK") return c.memoryMb;
+  const modded = ["FABRIC", "FORGE", "NEOFORGE", "CUSTOM"].includes(c.software);
+  const overhead = modded
+    ? Math.max(1024, Math.min(4096, Math.ceil(c.memoryMb / 2)))
+    : 1024;
+  return c.memoryMb + overhead;
+}
 export interface RuntimeContext {
   installation: string;
   network: string;
@@ -83,7 +92,7 @@ export class JavaMinecraftProvider implements MinecraftRuntimeProvider {
       Labels: labels(ctx.installation, id),
       HostConfig: {
         Binds: [`${ctx.hostDirectory}:/data`],
-        Memory: (c.memoryMb + 512) * 1024 * 1024,
+        Memory: runtimeMemoryMb(c) * 1024 * 1024,
         NanoCpus: Math.round(c.cpu * 1e9),
         NetworkMode: ctx.network,
         RestartPolicy: { Name: "no" },

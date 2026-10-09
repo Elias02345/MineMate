@@ -235,6 +235,16 @@ test("retries an ATM ServerFiles ZIP in the created world and accepts identical 
   page,
 }) => {
   await login(page);
+  let transferredParts = 0;
+  page.on("request", (request) => {
+    if (
+      request.method() === "PUT" &&
+      /\/upload-sessions\/[^/]+\/files\/0$/.test(
+        new URL(request.url()).pathname,
+      )
+    )
+      transferredParts++;
+  });
   const installer = await archive({
     "install_profile.json": JSON.stringify({
       minecraft: "26.1.2",
@@ -306,6 +316,24 @@ test("retries an ATM ServerFiles ZIP in the created world and accepts identical 
   await expect(
     page.getByRole("button", { name: "Open the created world", exact: true }),
   ).toBeVisible();
+  expect(transferredParts).toBe(1);
+  const repeatedImport = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      /\/upload-sessions\/[^/]+\/finish$/.test(
+        new URL(response.url()).pathname,
+      ),
+  );
+  await page.getByRole("button", { name: "Craft this world" }).click();
+  await repeatedImport;
+  await page.getByText("Technical details", { exact: true }).click();
+  await expect(
+    page.getByText(
+      "example.jar: Duplicate archive paths have different content.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  expect(transferredParts).toBe(1);
   await page.locator('input[type="file"]').setInputFiles({
     name: "ServerFiles-0.10.0-beta.zip",
     mimeType: "application/zip",
@@ -315,6 +343,7 @@ test("retries an ATM ServerFiles ZIP in the created world and accepts identical 
   await expect(
     page.getByRole("heading", { name: "ATM 11 fixture", exact: true }),
   ).toBeVisible({ timeout: 30000 });
+  expect(transferredParts).toBe(2);
   const id = page.url().split("/").at(-1)!;
   const server = (await (
     await page.request.get(`/api/v1/servers/${id}`)
