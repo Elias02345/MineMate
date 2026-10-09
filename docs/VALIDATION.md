@@ -12,6 +12,25 @@ byte-for-byte public release download checks and the full production Compose
 smoke against that published amd64 image also pass. GitHub names the environment
 asset `default.env.example`; download it as `.env`.
 
+## Dedicated ATM world creator (0.4.5)
+
+The Java wizard now offers **All the Mods (ATM)** as a separate choice. It
+requires one ServerFiles ZIP and skips manual Minecraft version, loader, server
+JAR and individual mod selection. A provisional world reserves storage and a
+port without launching a mismatched Minecraft runtime. The ATM upload path
+accepts ZIPs only, requires a Forge/NeoForge installer and a `mods/` directory,
+then detects the exact version and loader, imports content and starts the
+server. The controlled browser test creates an ATM-style NeoForge world through
+this path and checks the inferred configuration and inventory. The API test
+rejects a client MRPACK in the ATM path and verifies a complete server pack
+import. The official ATM-11 archive evidence and live-runtime limit remain
+documented below.
+
+For version 0.4.5, strict TypeScript, lint, 75 unit/API tests, all 18 browser
+tests, the Docker integration test, production build and local-image Compose
+smoke passed. The Compose smoke verified the web API, socket proxy, non-root
+startup and retained owner session after recreation.
+
 ## All the Mods server packs (0.4.4)
 
 The official

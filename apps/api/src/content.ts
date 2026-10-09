@@ -177,67 +177,85 @@ export class Content {
         const versions: ContentVersion[] = [];
         let serverPack: { root: string; installer: string } | undefined;
         const indexFile = await safePath(staging, "modrinth.index.json", true);
-        try {
-          const raw = await readFile(indexFile, "utf8"),
-            index = mrpackSchema.parse(JSON.parse(raw));
-          configuration = this.packConfig(s.config, index.dependencies);
-          for (const f of index.files) {
-            if (f.env?.server === "unsupported") continue;
-            relativeSafe(f.path);
-            if (f.path.startsWith("client-overrides/")) continue;
-            const target = await safePath(staging, "resolved/" + f.path, true);
-            await mkdir(path.dirname(target), { recursive: true, mode: 0o700 });
-            const hash = f.hashes.sha512 ?? f.hashes.sha1;
-            if (!hash)
-              throw new AppError(
-                "MODPACK_HASH",
-                "A modpack file has no verification hash.",
-              );
-            await downloadVerified(
-              f.downloads[0]!,
-              target,
-              hash,
-              f.hashes.sha512 ? "sha512" : "sha1",
-            );
-          }
-        } catch (e) {
-          if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
-          let manifest: string | undefined;
+        if (op.payload.kind === "atm") {
+          const pack = await this.inspectServerPack(staging, s.config, phase);
+          configuration = pack.config;
+          serverPack = pack;
+        } else {
           try {
-            manifest = await readFile(
-              await safePath(staging, "manifest.json"),
-              "utf8",
-            );
-          } catch (error) {
-            if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-          }
-          if (manifest !== undefined) {
-            const index = cursepackSchema.parse(JSON.parse(manifest));
-            const primary =
-              index.minecraft.modLoaders.find((l) => l.primary) ??
-              index.minecraft.modLoaders[0];
-            if (!primary)
-              throw new AppError(
-                "MODPACK_LOADER",
-                "This pack has no server loader.",
-              );
-            const [loader, ...loaderVersion] = primary.id.split("-");
-            configuration = this.packConfig(s.config, {
-              minecraft: index.minecraft.version,
-              [loader + "-loader"]: loaderVersion.join("-"),
-            });
-            const provider = this.provider("curseforge");
+            const raw = await readFile(indexFile, "utf8"),
+              index = mrpackSchema.parse(JSON.parse(raw));
+            configuration = this.packConfig(s.config, index.dependencies);
             for (const f of index.files) {
-              const v = await provider.version(
-                String(f.fileID),
-                String(f.projectID),
+              if (f.env?.server === "unsupported") continue;
+              relativeSafe(f.path);
+              if (f.path.startsWith("client-overrides/")) continue;
+              const target = await safePath(
+                staging,
+                "resolved/" + f.path,
+                true,
               );
-              versions.push(v);
+              await mkdir(path.dirname(target), {
+                recursive: true,
+                mode: 0o700,
+              });
+              const hash = f.hashes.sha512 ?? f.hashes.sha1;
+              if (!hash)
+                throw new AppError(
+                  "MODPACK_HASH",
+                  "A modpack file has no verification hash.",
+                );
+              await downloadVerified(
+                f.downloads[0]!,
+                target,
+                hash,
+                f.hashes.sha512 ? "sha512" : "sha1",
+              );
             }
-          } else {
-            const pack = await this.inspectServerPack(staging, s.config, phase);
-            configuration = pack.config;
-            serverPack = pack;
+          } catch (e) {
+            if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+            let manifest: string | undefined;
+            try {
+              manifest = await readFile(
+                await safePath(staging, "manifest.json"),
+                "utf8",
+              );
+            } catch (error) {
+              if ((error as NodeJS.ErrnoException).code !== "ENOENT")
+                throw error;
+            }
+            if (manifest !== undefined) {
+              const index = cursepackSchema.parse(JSON.parse(manifest));
+              const primary =
+                index.minecraft.modLoaders.find((l) => l.primary) ??
+                index.minecraft.modLoaders[0];
+              if (!primary)
+                throw new AppError(
+                  "MODPACK_LOADER",
+                  "This pack has no server loader.",
+                );
+              const [loader, ...loaderVersion] = primary.id.split("-");
+              configuration = this.packConfig(s.config, {
+                minecraft: index.minecraft.version,
+                [loader + "-loader"]: loaderVersion.join("-"),
+              });
+              const provider = this.provider("curseforge");
+              for (const f of index.files) {
+                const v = await provider.version(
+                  String(f.fileID),
+                  String(f.projectID),
+                );
+                versions.push(v);
+              }
+            } else {
+              const pack = await this.inspectServerPack(
+                staging,
+                s.config,
+                phase,
+              );
+              configuration = pack.config;
+              serverPack = pack;
+            }
           }
         }
         phase("Saving the current world and inventory");
@@ -286,7 +304,7 @@ export class Content {
         phase("Verifying the imported server pack");
         await servers.start(s);
         await servers.waitReady(s);
-        if (!running) await servers.stop(s);
+        if (!running && op.payload.kind !== "atm") await servers.stop(s);
         servers.store.audit(actor, s.id, "modpack.imported");
         return { backupId: recovery.id, config: configuration };
       } catch (e) {

@@ -317,6 +317,22 @@ const messages = {
     "Import a curated collection of mods.",
     "Importiere eine zusammengestellte Mod-Sammlung.",
   ],
+  atmStyle: ["All the Mods (ATM)", "All the Mods (ATM)"],
+  atmStyleHint: [
+    "Upload the official ServerFiles ZIP. MineMate sets up Minecraft, NeoForge or Forge, mods and configuration for you.",
+    "Lade die offizielle ServerFiles-ZIP hoch. MineMate richtet Minecraft, NeoForge oder Forge, Mods und Konfiguration für dich ein.",
+  ],
+  wizardAtm: ["Your ATM server pack", "Dein ATM-Serverpaket"],
+  atmZipUpload: ["Upload ATM ServerFiles ZIP", "ATM-ServerFiles-ZIP hochladen"],
+  atmUploadHint: [
+    "Choose the complete ServerFiles ZIP from the ATM pack's CurseForge Files page. The client pack and GitHub source ZIP are not server files. MineMate detects the Minecraft and loader versions automatically; no separate installer or mod upload is needed.",
+    "Wähle die vollständige ServerFiles-ZIP von der CurseForge-Dateiseite des ATM-Packs. Client-Pack und GitHub-Quellcode-ZIP sind keine Serverdateien. MineMate erkennt Minecraft- und Loader-Version automatisch; Installer und Mods müssen nicht separat hochgeladen werden.",
+  ],
+  atmZipOnly: [
+    "Choose one ServerFiles ZIP archive.",
+    "Wähle genau ein ServerFiles-ZIP-Archiv.",
+  ],
+  atmAutoDetected: ["Detected from ZIP", "Wird aus ZIP erkannt"],
   customJar: ["Your own server JAR", "Deine eigene Server-JAR"],
   customJarHint: [
     "For experts. Upload a trusted server archive.",

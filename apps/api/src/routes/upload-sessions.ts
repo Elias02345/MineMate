@@ -36,6 +36,7 @@ const kinds = z.enum([
   "world-folder",
   "server",
   "modpack",
+  "atm",
   "jar",
   "custom",
   "file",
@@ -72,7 +73,7 @@ function checked(input: Input) {
   )
     throw new AppError("UPLOAD_LIMIT", "The complete upload exceeds 20 GB.");
   if (
-    ["custom", "world", "server", "modpack"].includes(input.kind) &&
+    ["custom", "world", "server", "modpack", "atm"].includes(input.kind) &&
     input.files.length !== 1
   )
     throw new AppError("UPLOAD", "Import one archive at a time.");
@@ -96,6 +97,8 @@ function checked(input: Input) {
     const ext = path.extname(f.name).toLowerCase();
     if (["jar", "custom"].includes(input.kind) && ext !== ".jar")
       throw new AppError("JAR", "Choose a JAR file.");
+    if (input.kind === "atm" && ext !== ".zip")
+      throw new AppError("UPLOAD_TYPE", "Choose the ATM ServerFiles ZIP.");
     if (
       !["jar", "custom", "file", "world-folder"].includes(input.kind) &&
       ![".zip", ".mrpack", ".jar", ".mcworld"].includes(ext)
@@ -200,7 +203,7 @@ export function registerUploadSessionRoutes(context: RouteContext) {
     world(
       r,
       permission ??
-        (["jar", "custom", "modpack"].includes(session.kind)
+        (["jar", "custom", "modpack", "atm"].includes(session.kind)
           ? "content"
           : "files"),
     );
@@ -286,11 +289,13 @@ export function registerUploadSessionRoutes(context: RouteContext) {
       checked(spec);
       const server = world(
         r,
-        ["jar", "custom", "modpack"].includes(spec.kind) ? "content" : "files",
+        ["jar", "custom", "modpack", "atm"].includes(spec.kind)
+          ? "content"
+          : "files",
       );
       if (spec.kind === "custom") world(r, "settings");
       if (
-        ["jar", "custom"].includes(spec.kind) &&
+        ["jar", "custom", "atm"].includes(spec.kind) &&
         server.config.edition !== "JAVA"
       )
         throw new AppError("CAPABILITY", "Bedrock cannot run Java archives.");
@@ -574,7 +579,7 @@ export function registerUploadSessionRoutes(context: RouteContext) {
           operation = jobs.enqueue(
             current.serverId,
             current.actor,
-            current.kind === "modpack" ? "modpack" : "import",
+            ["modpack", "atm"].includes(current.kind) ? "modpack" : "import",
             {
               filename: files[0]!.filename,
               kind: current.kind,

@@ -78,7 +78,12 @@ export function Wizard({
   useEffect(() => {
     if (!version && versions.data) setVersion(versions.data.recommended);
   }, [versions.data, version]);
-  const supportsContent = edition === "JAVA" && software !== "VANILLA",
+  const atm = edition === "JAVA" && style === "atm",
+    atmZipReady =
+      files.length === 1 &&
+      /\.zip$/i.test(files[0]!.name) &&
+      !selectionError(files, false),
+    supportsContent = edition === "JAVA" && !atm && software !== "VANILLA",
     plugins = ["PAPER", "PURPUR"].includes(software),
     contentStep: TranslationKey = plugins ? "wizardPlugins" : "wizardMods",
     contentLabel = t(plugins ? "pluginJarUpload" : "modJarUpload"),
@@ -87,30 +92,38 @@ export function Wizard({
       (contentJars.some((file) => !/\.jar$/i.test(file.name))
         ? "uploadJarTypeError"
         : null),
-    stepKeys: TranslationKey[] = [
+    stepKeys = [
       "wizardEdition",
       "wizardStyle",
-      "wizardVersion",
+      ...(atm ? ["wizardAtm"] : ["wizardVersion"]),
       ...(supportsContent ? [contentStep] : []),
       "wizardResources",
-      "wizardWorld",
+      ...(atm ? [] : ["wizardWorld"]),
       "wizardEula",
       "wizardReview",
-    ],
+    ] as TranslationKey[],
     currentStep = stepKeys[step];
   const config: ServerConfig = {
     name: name || t("worldDefault"),
     edition,
-    software: edition === "BEDROCK" ? "BEDROCK" : software,
-    version: edition === "BEDROCK" ? version || "LATEST" : version,
-    serverSource: edition === "BEDROCK" ? "download" : serverSource,
-    loaderVersion: loader,
+    software: edition === "BEDROCK" ? "BEDROCK" : atm ? "NEOFORGE" : software,
+    // The provisional version never starts a Minecraft container. The server
+    // ZIP's installer supplies the actual version and loader on import.
+    version:
+      edition === "BEDROCK"
+        ? version || "LATEST"
+        : atm
+          ? version || "1.21.1"
+          : version,
+    serverSource:
+      edition === "BEDROCK" ? "download" : atm ? "upload" : serverSource,
+    loaderVersion: atm ? "" : loader,
     memoryMb: memory,
     cpu,
     maxPlayers,
-    java,
+    java: atm ? "auto" : java,
     jvmFlags: "",
-    seed,
+    seed: atm ? "" : seed,
     sleepMinutes: 0,
     eula: true,
     ...(port ? { port: Number(port) } : {}),
@@ -128,7 +141,7 @@ export function Wizard({
       await client.invalidateQueries();
       if (serverJar || files.length || contentJars.length) {
         await waitForOperation(result.operation, result.server.id, setPhase);
-        if (serverJar && !completedUploads.current.has("server")) {
+        if (serverJar && !atm && !completedUploads.current.has("server")) {
           setPhase(t("uploadTransferring"));
           setPercent(0);
           const uploaded = await uploadSelection(
@@ -149,13 +162,15 @@ export function Wizard({
         }
         if (files.length && !completedUploads.current.has("world")) {
           const kind =
-            worldKind === "pack"
-              ? "modpack"
-              : worldKind === "server"
-                ? "server"
-                : folderWorld
-                  ? "world-folder"
-                  : "world";
+            worldKind === "atm"
+              ? "atm"
+              : worldKind === "pack"
+                ? "modpack"
+                : worldKind === "server"
+                  ? "server"
+                  : folderWorld
+                    ? "world-folder"
+                    : "world";
           setPhase(t("uploadTransferring"));
           setPercent(0);
           const uploaded = await uploadSelection(
@@ -211,41 +226,59 @@ export function Wizard({
     setSoftware(
       value === "plugins"
         ? "PAPER"
-        : value === "mods" || value === "modpack"
-          ? "FABRIC"
-          : value === "custom"
-            ? "CUSTOM"
-            : "VANILLA",
+        : value === "atm"
+          ? "NEOFORGE"
+          : value === "mods" || value === "modpack"
+            ? "FABRIC"
+            : value === "custom"
+              ? "CUSTOM"
+              : "VANILLA",
     );
-    setWorldKind(value === "modpack" ? "pack" : "new");
-    setServerSource(value === "custom" ? "upload" : "download");
+    setWorldKind(
+      value === "atm" ? "atm" : value === "modpack" ? "pack" : "new",
+    );
+    setServerSource(
+      value === "custom" || value === "atm" ? "upload" : "download",
+    );
+    if (value === "atm") {
+      setMemory(8192);
+      setCpu(4);
+      setJava("auto");
+      setLoader("");
+    }
     setServerJar(null);
     setContentJars([]);
     setFiles([]);
     setFolderWorld(false);
   }
   const ready =
-    currentStep === "wizardVersion"
-      ? edition === "BEDROCK" ||
-        (!!version && (serverSource !== "upload" || !!serverJar))
-      : currentStep === contentStep
-        ? !contentError
-        : currentStep === "wizardWorld"
-          ? worldKind === "new" ||
-            (files.length > 0 && !selectionError(files, folderWorld))
-          : currentStep === "wizardEula"
-            ? eula
-            : currentStep === "wizardReview"
-              ? eula &&
-                !!(name || t("worldDefault")) &&
-                (serverSource !== "upload" ||
-                  !!serverJar ||
-                  completedUploads.current.has("server")) &&
-                (worldKind === "new" ||
-                  completedUploads.current.has("world") ||
-                  (files.length > 0 && !selectionError(files, folderWorld))) &&
-                (completedUploads.current.has("content") || !contentError)
-              : true;
+    currentStep === "wizardAtm"
+      ? atmZipReady
+      : currentStep === "wizardVersion"
+        ? edition === "BEDROCK" ||
+          (!!version && (serverSource !== "upload" || !!serverJar))
+        : currentStep === contentStep
+          ? !contentError
+          : currentStep === "wizardWorld"
+            ? worldKind === "new" ||
+              (files.length > 0 && !selectionError(files, folderWorld))
+            : currentStep === "wizardEula"
+              ? eula
+              : currentStep === "wizardReview"
+                ? eula &&
+                  !!(name || t("worldDefault")) &&
+                  (atm ||
+                    serverSource !== "upload" ||
+                    !!serverJar ||
+                    completedUploads.current.has("server")) &&
+                  (atm
+                    ? atmZipReady || completedUploads.current.has("world")
+                    : worldKind === "new" ||
+                      completedUploads.current.has("world") ||
+                      (files.length > 0 &&
+                        !selectionError(files, folderWorld))) &&
+                  (completedUploads.current.has("content") || !contentError)
+                : true;
   return (
     <MineModal
       open={open}
@@ -367,6 +400,12 @@ export function Wizard({
                       hint: "modpackHint",
                     },
                     {
+                      id: "atm",
+                      icon: "chest",
+                      title: "atmStyle",
+                      hint: "atmStyleHint",
+                    },
+                    {
                       id: "custom",
                       icon: "pickaxe",
                       title: "customJar",
@@ -390,6 +429,22 @@ export function Wizard({
                 ))}
               </div>
             ))}
+          {currentStep === "wizardAtm" && (
+            <>
+              <MineNotice>{t("atmUploadHint")}</MineNotice>
+              <UploadPicker
+                files={files}
+                onChange={setFiles}
+                accept=".zip"
+                label={t("atmZipUpload")}
+              />
+              {files.length > 0 && !atmZipReady && (
+                <MineNotice>
+                  {t(selectionError(files, false) ?? "atmZipOnly")}
+                </MineNotice>
+              )}
+            </>
+          )}
           {currentStep === "wizardVersion" && (
             <>
               <MineBadge tone="grass">{t("recommended")}</MineBadge>
@@ -695,13 +750,13 @@ export function Wizard({
               <div className="review-grid">
                 {[
                   [t("edition"), config.edition],
-                  [t("version"), config.version],
-                  [t("software"), config.software],
+                  [t("version"), atm ? t("atmAutoDetected") : config.version],
+                  [t("software"), atm ? t("atmAutoDetected") : config.software],
                   [t("memory"), `${memory} MB`],
                   [t("cpu"), String(cpu)],
                   [t("maxPlayers"), String(maxPlayers)],
                   [
-                    t("worlds"),
+                    atm ? t("atmZipUpload") : t("worlds"),
                     files.length
                       ? files[0]!.webkitRelativePath.split("/")[0] ||
                         files[0]!.name
@@ -741,6 +796,7 @@ export function Wizard({
             <>
               <MineNotice>{t("createdWorldRetained")}</MineNotice>
               {serverSource === "upload" &&
+                !atm &&
                 !completedUploads.current.has("server") && (
                   <UploadPicker
                     files={serverJar ? [serverJar] : []}
@@ -755,8 +811,14 @@ export function Wizard({
                     files={files}
                     onChange={setFiles}
                     folder={folderWorld}
-                    accept=".zip,.mrpack,.mcworld"
-                    label={t(folderWorld ? "chooseFolder" : "chooseArchive")}
+                    accept={atm ? ".zip" : ".zip,.mrpack,.mcworld"}
+                    label={t(
+                      atm
+                        ? "atmZipUpload"
+                        : folderWorld
+                          ? "chooseFolder"
+                          : "chooseArchive",
+                    )}
                   />
                 )}
               {supportsContent && !completedUploads.current.has("content") && (

@@ -6,6 +6,15 @@ interface, guided setup, an inventory, configuration books and recovery chests.
 
 ![MineMate world overview](docs/screenshots/server.png)
 
+## One-step ATM setup · 0.4.5
+
+In the Java world creator, choose **All the Mods (ATM)** and upload the official
+**ServerFiles ZIP**. MineMate discovers the Minecraft and Forge/NeoForge versions
+from the bundled installer, validates the mods, imports the pack and starts the
+server. There is no separate version, server JAR or mod selection. Choose the
+server's memory, accept the Minecraft EULA and give the world a name. See
+[the upload guide](docs/UPLOADS.md#import-an-all-the-mods-server-pack).
+
 ## All the Mods server packs · 0.4.4
 
 Import an official Forge or NeoForge **ServerFiles ZIP** directly through the
@@ -105,7 +114,7 @@ Sound starts muted. OS reduced-motion preferences also stop decorative movement.
 Assets and fonts are served locally; see [the UI guide](docs/ADVENTURE_UI.md).
 
 To upgrade an existing installation, set
-`MINEMATE_IMAGE=ghcr.io/elias02345/minemate:0.4.4` and `MINEMATE_PORT=18080` in your
+`MINEMATE_IMAGE=ghcr.io/elias02345/minemate:0.4.5` and `MINEMATE_PORT=18080` in your
 existing `.env`, then run `docker compose pull` and `docker compose up -d --wait`.
 Keep your existing data directory and LAN settings. Open `http://HOST-IP:18080`.
 An older `.env` with `MINEMATE_PORT=8080` keeps that port until you change it.
@@ -125,8 +134,8 @@ Download just the two configuration files from the release:
 ```sh
 mkdir minemate
 cd minemate
-curl -fL -o docker-compose.yml https://github.com/Elias02345/MineMate/releases/download/v0.4.4/docker-compose.yml
-curl -fL -o .env https://github.com/Elias02345/MineMate/releases/download/v0.4.4/default.env.example
+curl -fL -o docker-compose.yml https://github.com/Elias02345/MineMate/releases/download/v0.4.5/docker-compose.yml
+curl -fL -o .env https://github.com/Elias02345/MineMate/releases/download/v0.4.5/default.env.example
 ```
 
 Set **MINEMATE_LAN_IP** in `.env` to your Docker host's LAN address, then start:
@@ -135,7 +144,7 @@ Set **MINEMATE_LAN_IP** in `.env` to your Docker host's LAN address, then start:
 docker compose up -d --wait
 ```
 
-Compose downloads **ghcr.io/elias02345/minemate:0.4.4**. You do not need Git, Node,
+Compose downloads **ghcr.io/elias02345/minemate:0.4.5**. You do not need Git, Node,
 source code or a local image build. The one-shot `prepare-data` service adjusts
 only the data directory's owner, then the non-root MineMate service starts. It
 reads the actual host bind path from Docker and verifies it with a sentinel.

@@ -576,12 +576,23 @@ describe("world operations with a controlled Docker fixture", () => {
       "server.properties": "server-port=1\n",
     });
     const base = `/api/v1/servers/${server.id}/upload-sessions`;
+    const wrongType = await instance.app.inject({
+      method: "POST",
+      url: base,
+      headers,
+      payload: {
+        kind: "atm",
+        confirm: true,
+        files: [{ name: "client.mrpack", size: pack.length }],
+      },
+    });
+    expect(wrongType.statusCode).toBe(400);
     const created = await instance.app.inject({
       method: "POST",
       url: base,
       headers,
       payload: {
-        kind: "modpack",
+        kind: "atm",
         confirm: true,
         files: [{ name: "ServerFiles-0.10.0-beta.zip", size: pack.length }],
       },

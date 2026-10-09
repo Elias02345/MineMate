@@ -227,7 +227,7 @@ test("creates NeoForge with 201 wizard mods and adds 121 mods from Inventory", a
   ).toHaveLength(322);
 });
 
-test("creates ATM-style NeoForge from its server ZIP in the wizard", async ({
+test("creates ATM from one ServerFiles ZIP without manual loader setup", async ({
   page,
 }) => {
   await login(page);
@@ -252,23 +252,30 @@ test("creates ATM-style NeoForge from its server ZIP in the wizard", async ({
     .first()
     .click();
   await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await page.getByRole("button", { name: /A whole new adventure/ }).click();
+  await page.getByRole("button", { name: /All the Mods \(ATM\)/ }).click();
   await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await page
-    .getByRole("combobox", { name: "Server software", exact: true })
-    .selectOption("NEOFORGE");
-  await page.getByLabel("Enter a specific version").fill("26.1.2");
-  for (let i = 0; i < 3; i++)
-    await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await page
-    .getByRole("combobox", { name: "A fresh beginning, or a familiar home?" })
-    .selectOption("pack");
-  await expect(page.getByText(/official ServerFiles ZIP/)).toBeVisible();
+  await expect(
+    page.getByText(/Choose the complete ServerFiles ZIP/),
+  ).toBeVisible();
+  await expect(page.getByLabel("Enter a specific version")).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Continue", exact: true }),
+  ).toBeDisabled();
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "client.mrpack",
+    mimeType: "application/octet-stream",
+    buffer: pack,
+  });
+  await expect(
+    page.getByText("Choose one ServerFiles ZIP archive."),
+  ).toBeVisible();
   await page.locator('input[type="file"]').setInputFiles({
     name: "ServerFiles-0.10.0-beta.zip",
     mimeType: "application/zip",
     buffer: pack,
   });
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(page.getByLabel("Memory in MB")).toHaveValue("8192");
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await page.getByLabel("I have read and accept").check();
   await page.getByRole("button", { name: "Continue", exact: true }).click();
@@ -288,6 +295,7 @@ test("creates ATM-style NeoForge from its server ZIP in the wizard", async ({
     serverSource: "upload",
     java: "auto",
   });
+  expect(server.state).toBe("RUNNING");
   await page.getByRole("tab", { name: "Inventory", exact: true }).click();
   await expect(page.locator(".inventory-list")).toContainText("example.jar");
 });

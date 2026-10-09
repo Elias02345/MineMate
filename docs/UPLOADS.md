@@ -93,16 +93,17 @@ modpack ZIP or the GitHub source repository. The server ZIP already contains
 the NeoForge installer, mods, configuration and KubeJS content. It does not
 need a CurseForge API key because the content is inside the downloaded ZIP.
 
-In **Create a world**, choose Java and **A whole new adventure**. Select the
-matching Forge/NeoForge software and Minecraft version, give the server enough
-RAM (ATM-11's script recommends an 8 GiB heap), and leave Java on Auto. Skip
-the optional individual mod step. At **Import a modpack**, select the complete
-ServerFiles ZIP. MineMate reads the exact Minecraft and loader versions from
-its installer, checks every mod JAR, and installs the pack as one recoverable
-operation. The installer must not also be uploaded as a mod or as a separate
-server JAR. Existing Java worlds can use **Inventory → Upload mod / plugin JARs
-→ Upload type: Modpack**;
-their previous mod/config content is replaced after a recovery point is saved.
+In **Create a world**, choose **Java → All the Mods (ATM)** and upload the
+complete ServerFiles ZIP in the dedicated ATM step. MineMate creates the world
+without starting a provisional Minecraft server, reads the exact Minecraft and
+Forge/NeoForge versions from the ZIP's installer, checks every mod JAR, imports
+the pack and starts the server. The wizard defaults to 8 GiB of memory for ATM;
+adjust this to the pack's requirements and your host's capacity. Accept the
+Minecraft EULA and give the world a name. There is no manual version, server
+JAR or individual mod step. If an upload or import fails, retry in the same
+created world instead of making a duplicate. Existing Java worlds can still use
+**Inventory → Upload mod / plugin JARs → Upload type: Modpack**; their previous
+mod/config content is replaced after a recovery point is saved.
 
 MineMate imports game content such as `mods/`, `config/`, `defaultconfigs/`
 and `kubejs/`. It uses its own server settings, EULA and Java memory limit;
